@@ -1,0 +1,15 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5ab9c52..5baab37 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -42,7 +42,9 @@ endforeach()
+ 
+ # Build the library with C++11 standard support, independent from other including
+ # software which may use a different CXX_STANDARD or CMAKE_CXX_STANDARD.
+-set(CMAKE_CXX_STANDARD 11)
++if(NOT DEFINED CMAKE_CXX_STANDARD)
++    set(CMAKE_CXX_STANDARD 11)
++endif()
+ set(CMAKE_CXX_EXTENSIONS OFF)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 

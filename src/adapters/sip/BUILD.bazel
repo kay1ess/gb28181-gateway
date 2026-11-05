@@ -1,0 +1,38 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "codec",
+    srcs = [
+        "sdp_codec.cc",
+        "xml_codec.cc",
+    ],
+    hdrs = [
+        "sdp_codec.h",
+        "xml_codec.h",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//tests:__subpackages__",
+    ],
+    deps = [
+        "//:api",
+        "//third_party:tinyxml2",
+    ],
+)
+
+cc_library(
+    name = "sip",
+    srcs = ["resip_service.cc"],
+    hdrs = ["resip_service.h"],
+    visibility = [
+        "//src:__subpackages__",
+        "//tests:__subpackages__",
+    ],
+    deps = [
+        ":codec",
+        "//:api",
+        "//src/core",
+        "//src/ports",
+        "//third_party:dum",
+    ],
+)

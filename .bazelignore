@@ -1,0 +1,4 @@
+.bazel-output
+tools/gb28181-go
+dist
+apps/web

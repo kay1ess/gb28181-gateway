@@ -1,0 +1,13 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+cc_binary(
+    name = "list_resources",
+    srcs = ["list_resources.cc"],
+    deps = ["//:sdk"],
+)
+
+cc_binary(
+    name = "live_preview",
+    srcs = ["live_preview.cc"],
+    deps = ["//:sdk"],
+)

@@ -1,0 +1,31 @@
+diff --git a/src/Rtp/RtpServer.cpp b/src/Rtp/RtpServer.cpp
+index 8aaaf49..4cc7496 100644
+--- a/src/Rtp/RtpServer.cpp
++++ b/src/Rtp/RtpServer.cpp
+@@ -140,6 +140,11 @@ void RtpServer::start(uint16_t local_port, const char *local_ip, const MediaTupl
+     auto poller = EventPollerPool::Instance().getPoller();
+     Socket::Ptr rtp_socket = Socket::createSocket(poller, true);
+     Socket::Ptr rtcp_socket = Socket::createSocket(poller, true);
++    // Install rollback before later TCP binding can throw. The read handler
++    // below owns rtp_socket, so its cycle must also be broken on failed start.
++    _on_cleanup = [rtp_socket]() {
++        rtp_socket->setOnRead(nullptr);
++    };
+     if (local_port == 0) {
+         // 随机端口，rtp端口采用偶数  [AUTO-TRANSLATED:3664eaf5]
+         // Random port, RTP port uses even numbers
+@@ -227,14 +232,6 @@ void RtpServer::start(uint16_t local_port, const char *local_ip, const MediaTupl
+         }
+     }
+ 
+-    _on_cleanup = [rtp_socket]() {
+-        if (rtp_socket) {
+-            // 去除循环引用  [AUTO-TRANSLATED:9afaed31]
+-            // Remove circular references
+-            rtp_socket->setOnRead(nullptr);
+-        }
+-    };
+-
+     _tcp_server = tcp_server;
+     _udp_server = udp_server;
+     _rtp_socket = rtp_socket;

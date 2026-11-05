@@ -1,0 +1,32 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
+
+alias(
+    name = "dependencies",
+    actual = "//third_party:all_deps",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "api",
+    hdrs = glob(["include/gb28181/**/*.h"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "sdk",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:api",
+        "//src/runtime",
+    ],
+)
+
+# Native objects combined for standalone Linux SDK consumers. Foreign archives
+# and the media shared library are supplied separately in the package.
+cc_static_library(
+    name = "sdk_archive",
+    tags = ["manual"],
+    deps = [":sdk"],
+)

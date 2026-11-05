@@ -1,0 +1,41 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+genrule(
+    name = "schema",
+    srcs = ["migrations/001_initial.sql"],
+    outs = ["schema.h"],
+    cmd = "echo 'namespace gb28181::storage { inline constexpr char kInitialSchema[] = R\"sql(' > $@; " +
+          "cat $(SRCS) >> $@; echo ')sql\"; }' >> $@",
+)
+
+cc_library(
+    name = "storage",
+    srcs = [
+        "database.cc",
+        "repository.cc",
+    ],
+    hdrs = [
+        "database.h",
+        "repository.h",
+        ":receive_mode_schema",
+        ":schema",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//tests:__subpackages__",
+    ],
+    deps = [
+        "//:api",
+        "//src/core",
+        "//src/ports",
+        "//third_party/sqlite",
+    ],
+)
+
+genrule(
+    name = "receive_mode_schema",
+    srcs = ["migrations/002_platform_receive_mode.sql"],
+    outs = ["receive_mode_schema.h"],
+    cmd = "echo 'namespace gb28181::storage { inline constexpr char kReceiveModeSchema[] = R\"sql(' > $@; " +
+          "cat $(SRCS) >> $@; echo ')sql\"; }' >> $@",
+)

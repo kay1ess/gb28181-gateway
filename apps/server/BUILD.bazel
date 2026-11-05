@@ -1,0 +1,37 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "responses",
+    srcs = ["http/response.cc"],
+    hdrs = ["http/response.h"],
+    visibility = ["//tests:__subpackages__"],
+    deps = [
+        "//:api",
+        "//src/core",
+        "//third_party:drogon",
+    ],
+)
+
+cc_library(
+    name = "http",
+    srcs = ["http/server.cc"],
+    hdrs = ["http/server.h"],
+    deps = [
+        ":responses",
+        "//:api",
+        "//src/core",
+        "//third_party:drogon",
+    ],
+)
+
+cc_binary(
+    name = "server",
+    srcs = ["main.cc"],
+    visibility = ["//tests:__pkg__"],
+    deps = [
+        ":http",
+        "//:sdk",
+        "//third_party:drogon",
+    ],
+)

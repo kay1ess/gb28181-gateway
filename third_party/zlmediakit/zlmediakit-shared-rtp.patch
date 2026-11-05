@@ -1,0 +1,554 @@
+diff --git a/api/include/mk_rtp_server.h b/api/include/mk_rtp_server.h
+index b85e983..c46cd4d 100644
+--- a/api/include/mk_rtp_server.h
++++ b/api/include/mk_rtp_server.h
+@@ -159,6 +159,22 @@ API_EXPORT void API_CALL mk_rtp_pause_check(const char *app, const char *stream)
+  */
+ API_EXPORT void API_CALL mk_rtp_resume_check(const char *app, const char *stream);
+ 
++/* Project-local persistent RTP listener extension. All streams share the UDP
++ * and passive TCP port; UDP RTCP uses port + 1. Only explicitly registered
++ * SSRCs are accepted. Mode values are 0=UDP, 1=TCP passive, 2=TCP active.
++ * Port 0 chooses one endpoint at listener startup, never one per stream.
++ * Release streams before releasing the server. No callback may throw.
++ */
++typedef struct mk_rtp_shared_server_t *mk_rtp_shared_server;
++typedef struct mk_rtp_shared_stream_t *mk_rtp_shared_stream;
++API_EXPORT mk_rtp_shared_server API_CALL mk_rtp_shared_server_create(uint16_t port, const char *local_ip);
++API_EXPORT uint16_t API_CALL mk_rtp_shared_server_port(mk_rtp_shared_server server);
++API_EXPORT void API_CALL mk_rtp_shared_server_release(mk_rtp_shared_server server);
++API_EXPORT mk_rtp_shared_stream API_CALL mk_rtp_shared_stream_create(mk_rtp_shared_server server, const char *stream_id, uint32_t ssrc, int mode);
++API_EXPORT void API_CALL mk_rtp_shared_stream_set_on_detach2(mk_rtp_shared_stream stream, on_mk_rtp_server_detach cb, void *user_data, on_user_data_free user_data_free);
++API_EXPORT void API_CALL mk_rtp_shared_stream_connect2(mk_rtp_shared_stream stream, const char *address, uint16_t port, on_mk_rtp_server_connected cb, void *user_data, on_user_data_free user_data_free);
++API_EXPORT void API_CALL mk_rtp_shared_stream_release(mk_rtp_shared_stream stream);
++
+ #ifdef __cplusplus
+ }
+-#endif
+\ No newline at end of file
++#endif
+diff --git a/src/Rtp/RtpProcess.cpp b/src/Rtp/RtpProcess.cpp
+index 87dfcee..d1980ae 100644
+--- a/src/Rtp/RtpProcess.cpp
++++ b/src/Rtp/RtpProcess.cpp
+@@ -25,9 +25,9 @@ static constexpr size_t kMaxCachedFrameMS = 10 * 1000;
+ 
+ namespace mediakit {
+ 
+-RtpProcess::Ptr RtpProcess::createProcess(const MediaTuple &tuple) {
++RtpProcess::Ptr RtpProcess::createProcess(const MediaTuple &tuple, const EventPoller::Ptr &poller) {
+     RtpProcess::Ptr ret(new RtpProcess(tuple));
+-    ret->createTimer();
++    ret->createTimer(poller);
+     return ret;
+ }
+ 
+@@ -85,7 +85,7 @@ void RtpProcess::onManager() {
+     }
+ }
+ 
+-void RtpProcess::createTimer() {
++void RtpProcess::createTimer(const EventPoller::Ptr &poller) {
+     // 创建超时管理定时器  [AUTO-TRANSLATED:865cf865]
+     // Create a timeout management timer
+     weak_ptr<RtpProcess> weakSelf = shared_from_this();
+@@ -96,7 +96,7 @@ void RtpProcess::createTimer() {
+         }
+         strongSelf->onManager();
+         return true;
+-    }, EventPollerPool::Instance().getPoller());
++    }, poller ? poller : EventPollerPool::Instance().getPoller());
+ }
+ 
+ bool RtpProcess::inputRtp(bool is_udp, const Socket::Ptr &sock, const char *data, size_t len, const struct sockaddr *addr, uint64_t *dts_out) {
+@@ -330,6 +330,9 @@ bool RtpProcess::close(mediakit::MediaSource &sender) {
+ }
+ 
+ bool RtpProcess::pause(MediaSource &sender, bool pause) {
++    if (_shared_socket) {
++        return false;
++    }
+     if (_sock) {
+         _sock->enableRecv(!pause);
+     }
+@@ -356,4 +359,4 @@ const toolkit::Socket::Ptr& RtpProcess::getSock() const {
+ }
+ 
+ }//namespace mediakit
+-#endif//defined(ENABLE_RTPPROXY)
+\ No newline at end of file
++#endif//defined(ENABLE_RTPPROXY)
+diff --git a/src/Rtp/RtpProcess.h b/src/Rtp/RtpProcess.h
+index 46a3a4b..0420c97 100644
+--- a/src/Rtp/RtpProcess.h
++++ b/src/Rtp/RtpProcess.h
+@@ -25,7 +25,9 @@ public:
+     using Ptr = std::shared_ptr<RtpProcess>;
+     using onDetachCB = std::function<void(const toolkit::SockException &ex)>;
+ 
+-    static Ptr createProcess(const MediaTuple &tuple);
++    static Ptr createProcess(const MediaTuple &tuple, const toolkit::EventPoller::Ptr &poller = nullptr);
++    // A shared UDP socket must never be paused for just one of its streams.
++    void setSharedSocket(bool shared) { _shared_socket = shared; }
+     ~RtpProcess();
+     enum OnlyTrack { kAll = 0, kOnlyAudio = 1, kOnlyVideo = 2 };
+ 
+@@ -126,9 +128,10 @@ private:
+     void doCachedFunc();
+     bool alive();
+     void onManager();
+-    void createTimer();
++    void createTimer(const toolkit::EventPoller::Ptr &poller);
+ 
+ private:
++    bool _shared_socket = false;
+     bool _pause_timeout = false;
+     uint32_t _pause_seconds = 5 * 60;
+     uint64_t _dts = 0;
+diff --git a/api/source/mk_rtp_shared.cpp b/api/source/mk_rtp_shared.cpp
+new file mode 100644
+index 0000000..e56d7ca
+--- /dev/null
++++ b/api/source/mk_rtp_shared.cpp
+@@ -0,0 +1,441 @@
++// Project-local C API extension: a persistent RTP/RTCP listener with explicit
++// SSRC admission. Protocol parsing and PS demuxing remain in ZLMediaKit.
++#include "mk_rtp_server.h"
++
++#if defined(ENABLE_RTPPROXY)
++#include "Common/config.h"
++#include "Common/macros.h"
++#include "Network/TcpServer.h"
++#include "Rtp/RtpProcess.h"
++#include "Rtp/RtpSplitter.h"
++#include "Rtsp/Rtsp.h"
++#include <cstring>
++#include <exception>
++#include <functional>
++#include <map>
++#include <memory>
++#include <stdexcept>
++#include <string>
++#include <utility>
++
++namespace {
++using namespace toolkit;
++using namespace mediakit;
++
++void RunOn(const EventPoller::Ptr &poller, const std::function<void()> &work) {
++    std::exception_ptr error;
++    poller->sync([&] {
++        try {
++            work();
++        } catch (...) {
++            error = std::current_exception();
++        }
++    });
++    if (error)
++        std::rethrow_exception(error);
++}
++
++struct SharedStream {
++    uint32_t ssrc = 0;
++    int mode = 0;
++    bool closed = false;
++    bool peer_set = false;
++    bool rtcp_set = false;
++    sockaddr_storage peer {};
++    sockaddr_storage rtcp_peer {};
++    Ticker rtcp_ticker;
++    std::string id;
++    RtpProcess::Ptr process;
++    Socket::Ptr tcp;
++    std::function<void()> detach;
++};
++
++uint32_t PacketSsrc(const char *data, size_t size) {
++    if (size < 12 || !isRtp(data, size))
++        return 0;
++    uint32_t value = 0;
++    memcpy(&value, data + 8, sizeof(value));
++    return ntohl(value);
++}
++
++class SharedListener;
++class SharedTcpSession final
++    : public Session
++    , public RtpSplitter {
++public:
++    explicit SharedTcpSession(const Socket::Ptr &socket)
++        : Session(socket) {}
++    void SetListener(std::weak_ptr<SharedListener> listener) { listener_ = std::move(listener); }
++    void onRecv(const Buffer::Ptr &data) override { RtpSplitter::input(data->data(), data->size()); }
++    void onError(const SockException &) override;
++    void onManager() override {
++        if (!ssrc_ && ticker_.createdTime() > 10000)
++            shutdown(SockException(Err_timeout, "RTP connection has no admitted SSRC"));
++    }
++
++private:
++    void onRtpPacket(const char *data, size_t size) override;
++    std::weak_ptr<SharedListener> listener_;
++    uint32_t ssrc_ = 0;
++    Ticker ticker_;
++};
++
++class ActiveInput final : public RtpSplitter {
++public:
++    explicit ActiveInput(std::function<void(const char *, size_t)> packet)
++        : packet_(std::move(packet)) {}
++
++private:
++    void onRtpPacket(const char *data, size_t size) override { packet_(data, size); }
++    std::function<void(const char *, size_t)> packet_;
++};
++
++class SharedListener final : public std::enable_shared_from_this<SharedListener> {
++public:
++    SharedListener()
++        : poller_(EventPollerPool::Instance().getPoller()) {}
++    ~SharedListener() { Stop(); }
++    const EventPoller::Ptr &poller() const { return poller_; }
++    uint16_t port() const { return port_; }
++
++    void Start(uint16_t port, std::string address) {
++        RunOn(poller_, [&] {
++            address_ = std::move(address);
++            udp_ = Socket::createSocket(poller_, false);
++            rtcp_ = Socket::createSocket(poller_, false);
++            if (port) {
++                if (port == 65535 || !udp_->bindUdpSock(port, address_, false) || !rtcp_->bindUdpSock(port + 1, address_, false))
++                    throw std::runtime_error("Cannot bind shared RTP/RTCP endpoints");
++            } else {
++                auto sockets = std::make_pair(udp_, rtcp_);
++                makeSockPair(sockets, address_, false);
++            }
++            port_ = udp_->get_local_port();
++            GET_CONFIG(int, udp_buffer, RtpProxy::kUdpRecvSocketBuffer);
++            SockUtil::setRecvBuf(udp_->rawFD(), udp_buffer);
++            std::weak_ptr<SharedListener> weak = shared_from_this();
++            udp_->setOnRead([weak](Buffer::Ptr &data, sockaddr *peer, int) {
++                if (auto listener = weak.lock())
++                    listener->Packet(data->data(), data->size(), listener->udp_, peer, 0);
++            });
++            rtcp_->setOnRead([weak](Buffer::Ptr &data, sockaddr *peer, int) {
++                if (auto listener = weak.lock())
++                    listener->Rtcp(data, peer);
++            });
++            tcp_ = std::make_shared<TcpServer>(poller_);
++            tcp_->start<SharedTcpSession>(port_, address_, 1024, [weak](std::shared_ptr<SharedTcpSession> &session) { session->SetListener(weak); });
++            running_ = true;
++        });
++    }
++
++    void Stop() {
++        try {
++            RunOn(poller_, [&] {
++                running_ = false;
++                while (!streams_.empty())
++                    Remove(streams_.begin()->second, false);
++                tcp_.reset();
++                if (udp_)
++                    udp_->setOnRead(nullptr);
++                if (rtcp_)
++                    rtcp_->setOnRead(nullptr);
++                udp_.reset();
++                rtcp_.reset();
++            });
++        } catch (...) {
++        }
++    }
++
++    std::shared_ptr<SharedStream> Add(const std::string &id, uint32_t ssrc, int mode) {
++        std::shared_ptr<SharedStream> result;
++        RunOn(poller_, [&] {
++            if (!running_ || !ssrc || mode < 0 || mode > 2 || streams_.count(ssrc))
++                throw std::runtime_error("Invalid or duplicate shared RTP registration");
++            for (const auto &entry : streams_)
++                if (entry.second->id == id)
++                    throw std::runtime_error("Duplicate RTP stream identity");
++            result = std::make_shared<SharedStream>();
++            result->ssrc = ssrc;
++            result->mode = mode;
++            result->id = id;
++            result->process = RtpProcess::createProcess(MediaTuple { DEFAULT_VHOST, kRtpAppName, id, "" }, poller_);
++            result->process->setOnlyTrack(RtpProcess::kOnlyVideo);
++            result->process->setSharedSocket(mode == 0);
++            std::weak_ptr<SharedListener> weak = shared_from_this();
++            std::weak_ptr<SharedStream> stream = result;
++            result->process->setOnDetach([weak, stream](const SockException &) {
++                if (auto listener = weak.lock())
++                    listener->poller_->async([weak, stream] {
++                        if (auto listener = weak.lock())
++                            if (auto current = stream.lock())
++                                listener->Remove(current, true);
++                    });
++            });
++            streams_.emplace(ssrc, result);
++        });
++        return result;
++    }
++
++    void Remove(std::shared_ptr<SharedStream> stream, bool notify) {
++        if (stream->closed)
++            return;
++        stream->closed = true;
++        auto found = streams_.find(stream->ssrc);
++        if (found != streams_.end() && found->second == stream)
++            streams_.erase(found);
++        auto socket = std::move(stream->tcp);
++        if (socket)
++            socket->emitErr(SockException(Err_shutdown, "RTP stream released"));
++        if (stream->process)
++            stream->process->setOnDetach(nullptr);
++        stream->process.reset();
++        if (notify && stream->detach)
++            stream->detach();
++        stream->detach = {};
++    }
++
++    uint32_t Packet(const char *data, size_t size, const Socket::Ptr &socket, const sockaddr *peer, int mode) {
++        if (!running_ || size < 12 || !isRtp(data, size))
++            return 0;
++        uint32_t network_ssrc = 0;
++        memcpy(&network_ssrc, data + 8, sizeof(network_ssrc));
++        const uint32_t ssrc = ntohl(network_ssrc);
++        auto found = streams_.find(ssrc);
++        if (found == streams_.end() || found->second->mode != mode)
++            return 0;
++        auto stream = found->second;
++        if (mode == 0) {
++            if (stream->peer_set
++                && (SockUtil::inet_ntoa(reinterpret_cast<sockaddr *>(&stream->peer)) != SockUtil::inet_ntoa(peer)
++                    || SockUtil::inet_port(reinterpret_cast<sockaddr *>(&stream->peer)) != SockUtil::inet_port(peer)))
++                return 0;
++            CopyAddress(stream->peer, peer);
++            stream->peer_set = true;
++        } else {
++            if (stream->tcp && stream->tcp != socket)
++                return 0;
++            stream->tcp = socket;
++        }
++        try {
++            stream->process->inputRtp(mode == 0, socket, data, size, peer);
++            if (mode == 0)
++                ReplyRtcp(stream);
++        } catch (const std::exception &) {
++            Remove(stream, true);
++            return 0;
++        }
++        return ssrc;
++    }
++
++    void Disconnected(uint32_t ssrc, const Socket::Ptr &socket) {
++        auto found = streams_.find(ssrc);
++        if (found != streams_.end() && found->second->tcp == socket)
++            Remove(found->second, true);
++    }
++
++    void Connect(const std::shared_ptr<SharedStream> &stream, const std::string &address, uint16_t port, std::function<void(const SockException &)> completed) {
++        RunOn(poller_, [&] {
++            if (!running_ || stream->closed || stream->mode != 2 || stream->tcp) {
++                completed(SockException(Err_other, "Invalid active RTP stream"));
++                return;
++            }
++            auto socket = Socket::createSocket(poller_, false);
++            stream->tcp = socket;
++            std::weak_ptr<SharedListener> weak = shared_from_this();
++            std::weak_ptr<SharedStream> registration = stream;
++            std::weak_ptr<Socket> weak_socket = socket;
++            socket->connect(
++                address, port,
++                [weak, registration, weak_socket, completed](const SockException &error) {
++                    auto listener = weak.lock();
++                    auto stream = registration.lock();
++                    auto socket = weak_socket.lock();
++                    if (!listener || !stream || !socket || stream->closed)
++                        return;
++                    if (!error) {
++                        auto parser = std::make_shared<ActiveInput>([weak, registration, weak_socket](const char *data, size_t size) {
++                            auto listener = weak.lock();
++                            auto stream = registration.lock();
++                            auto socket = weak_socket.lock();
++                            if (!listener || !stream || !socket || stream->closed)
++                                return;
++                            if (PacketSsrc(data, size) != stream->ssrc)
++                                return;
++                            sockaddr_storage peer {};
++                            socklen_t length = sizeof(peer);
++                            getpeername(socket->rawFD(), reinterpret_cast<sockaddr *>(&peer), &length);
++                            if (listener->Packet(data, size, socket, reinterpret_cast<sockaddr *>(&peer), 2) != stream->ssrc)
++                                return;
++                        });
++                        socket->setOnRead([parser, weak, registration](Buffer::Ptr &data, sockaddr *, int) {
++                            try {
++                                parser->input(data->data(), data->size());
++                            } catch (...) {
++                                if (auto listener = weak.lock())
++                                    if (auto stream = registration.lock())
++                                        listener->Remove(stream, true);
++                            }
++                        });
++                        socket->setOnErr([weak, registration](const SockException &) {
++                            if (auto listener = weak.lock())
++                                if (auto stream = registration.lock())
++                                    listener->Remove(stream, true);
++                        });
++                    }
++                    completed(error);
++                },
++                5.0F, address_, 0);
++        });
++    }
++
++private:
++    static void CopyAddress(sockaddr_storage &destination, const sockaddr *source) {
++        memset(&destination, 0, sizeof(destination));
++        memcpy(&destination, source, source->sa_family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
++    }
++    void Rtcp(const Buffer::Ptr &data, const sockaddr *peer) {
++        if (data->size() < 8)
++            return;
++        uint32_t ssrc = 0;
++        memcpy(&ssrc, data->data() + 4, sizeof(ssrc));
++        auto found = streams_.find(ntohl(ssrc));
++        if (found == streams_.end() || found->second->mode != 0 || !found->second->peer_set)
++            return;
++        auto stream = found->second;
++        if (SockUtil::inet_ntoa(peer) != SockUtil::inet_ntoa(reinterpret_cast<sockaddr *>(&stream->peer)))
++            return;
++        try {
++            auto packets = RtcpHeader::loadFromBytes(data->data(), data->size());
++            for (const auto &packet : packets)
++                stream->process->onRtcp(packet);
++            CopyAddress(stream->rtcp_peer, peer);
++            stream->rtcp_set = true;
++            ReplyRtcp(stream);
++        } catch (const std::exception &) {
++            // Malformed RTCP cannot stop other streams sharing the listener.
++        }
++    }
++    void ReplyRtcp(const std::shared_ptr<SharedStream> &stream) {
++        if (stream->rtcp_ticker.elapsedTime() < 5000)
++            return;
++        stream->rtcp_ticker.resetTime();
++        auto destination = stream->rtcp_set ? stream->rtcp_peer : stream->peer;
++        if (!stream->rtcp_set) {
++            const auto port = SockUtil::inet_port(reinterpret_cast<sockaddr *>(&destination));
++            if (port == 65535)
++                return;
++            if (destination.ss_family == AF_INET)
++                reinterpret_cast<sockaddr_in *>(&destination)->sin_port = htons(port + 1);
++            else
++                reinterpret_cast<sockaddr_in6 *>(&destination)->sin6_port = htons(port + 1);
++        }
++        rtcp_->send(stream->process->createRtcpRR(stream->ssrc + 1, stream->ssrc), reinterpret_cast<sockaddr *>(&destination));
++    }
++    EventPoller::Ptr poller_;
++    bool running_ = false;
++    uint16_t port_ = 0;
++    std::string address_;
++    Socket::Ptr udp_;
++    Socket::Ptr rtcp_;
++    TcpServer::Ptr tcp_;
++    std::map<uint32_t, std::shared_ptr<SharedStream>> streams_;
++};
++
++void SharedTcpSession::onRtpPacket(const char *data, size_t size) {
++    auto listener = listener_.lock();
++    if (!listener)
++        throw SockException(Err_shutdown, "RTP listener stopped");
++    if (ssrc_ && PacketSsrc(data, size) != ssrc_)
++        throw SockException(Err_other, "RTP connection changed SSRC");
++    sockaddr_storage peer {};
++    socklen_t length = sizeof(peer);
++    getpeername(getSock()->rawFD(), reinterpret_cast<sockaddr *>(&peer), &length);
++    const auto admitted = listener->Packet(data, size, getSock(), reinterpret_cast<sockaddr *>(&peer), 1);
++    if (!admitted || (ssrc_ && admitted != ssrc_))
++        throw SockException(Err_other, "Unregistered or mismatched RTP SSRC");
++    ssrc_ = admitted;
++}
++void SharedTcpSession::onError(const SockException &) {
++    if (auto listener = listener_.lock())
++        listener->Disconnected(ssrc_, getSock());
++}
++
++struct StreamHandle {
++    std::shared_ptr<SharedListener> owner;
++    std::shared_ptr<SharedStream> stream;
++};
++} // namespace
++
++API_EXPORT mk_rtp_shared_server API_CALL mk_rtp_shared_server_create(uint16_t port, const char *local_ip) {
++    try {
++        std::unique_ptr<std::shared_ptr<SharedListener>> server(new std::shared_ptr<SharedListener>(std::make_shared<SharedListener>()));
++        (*server)->Start(port, local_ip ? local_ip : "0.0.0.0");
++        return reinterpret_cast<mk_rtp_shared_server>(server.release());
++    } catch (...) {
++        return nullptr;
++    }
++}
++API_EXPORT uint16_t API_CALL mk_rtp_shared_server_port(mk_rtp_shared_server server) {
++    return server ? (*reinterpret_cast<std::shared_ptr<SharedListener> *>(server))->port() : 0;
++}
++API_EXPORT void API_CALL mk_rtp_shared_server_release(mk_rtp_shared_server server) {
++    auto owner = reinterpret_cast<std::shared_ptr<SharedListener> *>(server);
++    if (owner) {
++        (*owner)->Stop();
++        delete owner;
++    }
++}
++API_EXPORT mk_rtp_shared_stream API_CALL mk_rtp_shared_stream_create(mk_rtp_shared_server server, const char *stream_id, uint32_t ssrc, int mode) {
++    try {
++        if (!server || !stream_id || !*stream_id)
++            return nullptr;
++        std::unique_ptr<StreamHandle> handle(new StreamHandle());
++        handle->owner = *reinterpret_cast<std::shared_ptr<SharedListener> *>(server);
++        handle->stream = handle->owner->Add(stream_id, ssrc, mode);
++        return reinterpret_cast<mk_rtp_shared_stream>(handle.release());
++    } catch (...) {
++        return nullptr;
++    }
++}
++API_EXPORT void API_CALL mk_rtp_shared_stream_set_on_detach2(mk_rtp_shared_stream stream, on_mk_rtp_server_detach cb, void *data, on_user_data_free free_data) {
++    try {
++        std::shared_ptr<void> context(data, free_data ? free_data : [](void *) {});
++        auto handle = reinterpret_cast<StreamHandle *>(stream);
++        if (!handle)
++            return;
++        RunOn(handle->owner->poller(), [&] {
++            handle->stream->detach = [context, cb] {
++                if (cb)
++                    cb(context.get());
++            };
++        });
++    } catch (...) {
++    }
++}
++API_EXPORT void API_CALL mk_rtp_shared_stream_connect2(
++    mk_rtp_shared_stream stream, const char *address, uint16_t port, on_mk_rtp_server_connected cb, void *data, on_user_data_free free_data) {
++    std::shared_ptr<void> context;
++    try {
++        context = std::shared_ptr<void>(data, free_data ? free_data : [](void *) {});
++        auto handle = reinterpret_cast<StreamHandle *>(stream);
++        if (!handle || !address || !port)
++            throw std::runtime_error("Invalid RTP connect arguments");
++        handle->owner->Connect(handle->stream, address, port, [context, cb](const SockException &error) {
++            if (cb)
++                cb(context.get(), error.getErrCode(), error.what(), error.getCustomCode());
++        });
++    } catch (...) {
++        if (cb && context)
++            cb(context.get(), -1, "RTP connection failed", 0);
++    }
++}
++API_EXPORT void API_CALL mk_rtp_shared_stream_release(mk_rtp_shared_stream stream) {
++    std::unique_ptr<StreamHandle> handle(reinterpret_cast<StreamHandle *>(stream));
++    if (!handle)
++        return;
++    try {
++        RunOn(handle->owner->poller(), [&] { handle->owner->Remove(handle->stream, false); });
++    } catch (...) {
++    }
++}
++#endif

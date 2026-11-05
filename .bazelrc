@@ -1,0 +1,15 @@
+common --enable_platform_specific_config
+# Native x64 builds. --config selects settings, not a cross compiler.
+build:windows --platforms=//build/platforms:windows_x64
+# Use Git Bash rather than the Windows WSL launcher named bash.exe.
+build:windows --shell_executable="C:/Program Files/Git/bin/bash.exe"
+build:windows --cxxopt=/std:c++17
+build:windows --cxxopt=/utf-8
+build:windows --cxxopt=/Zc:__cplusplus
+build:linux --platforms=//build/platforms:linux_x64
+build:linux --cxxopt=-std=c++17
+
+# Linux x86_64 host, Linux ARM64 target (Debian GCC cross compiler).
+build:linux_arm64 --platforms=//build/platforms:linux_arm64
+build:linux_arm64 --extra_toolchains=@aarch64_linux_gnu//:toolchain
+build:linux_arm64 --symlink_prefix=.bazel-output/linux-arm64-

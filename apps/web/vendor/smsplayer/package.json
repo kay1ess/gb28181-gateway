@@ -1,0 +1,11 @@
+{
+  "name": "smsplayer",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "license": "ISC",
+  "exports": {
+    "./vue": { "types": "./vue/index.d.ts", "import": "./vue/index.js" }
+  },
+  "peerDependencies": { "vue": "^3.3.0" }
+}

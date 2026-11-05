@@ -1,0 +1,13 @@
+/bazel-*
+/.bazel-output/
+dist/
+!/apps/web/vendor/smsplayer/dist/
+node_modules/
+apps/web/.env.local
+apps/web/test-results/
+apps/web/playwright-report/
+/apps/web/public/smsplayer/
+/configs/server.local.json
+/data/
+/tools/
+/uploads/

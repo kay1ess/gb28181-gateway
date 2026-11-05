@@ -1,0 +1,65 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@platforms//os:windows"],
+)
+
+config_setting(
+    name = "linux_arm64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+alias(
+    name = "drogon",
+    actual = "@drogon_src//:drogon",
+)
+
+alias(
+    name = "jsoncpp",
+    actual = "@jsoncpp_src//:jsoncpp",
+)
+
+alias(
+    name = "resiprocate",
+    actual = "@resiprocate_src//:resiprocate",
+)
+
+alias(
+    name = "sqlite",
+    actual = "@sqlite_src//:sqlite",
+)
+
+alias(
+    name = "tinyxml2",
+    actual = "@tinyxml2_src//:tinyxml2",
+)
+
+alias(
+    name = "zlib",
+    actual = "@zlib_src//:zlib",
+)
+
+alias(
+    name = "zlmediakit",
+    actual = "@zlmediakit_src//:zlmediakit",
+)
+
+alias(
+    name = "dum",
+    actual = ":resiprocate",
+)
+
+cc_library(
+    name = "all_deps",
+    deps = [
+        ":drogon",
+        ":resiprocate",
+        ":zlmediakit",
+    ],
+)

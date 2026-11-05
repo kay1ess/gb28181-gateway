@@ -1,0 +1,17 @@
+{
+  "database_path": "gb28181.db",
+  "server_gb_id": "34020000002000000001",
+  "realm": "3402000000",
+  "bind_address": "127.0.0.1",
+  "advertised_address": "127.0.0.1",
+  "sip_port": 5060,
+  "http_port": 8080,
+  "media_http_port": 8081,
+  "media_rtsp_port": 8554,
+  "rtp_port": 10000,
+  "query_timeout_ms": 10000,
+  "media_timeout_ms": 10000,
+  "lease_seconds": 60,
+  "max_playbacks": 64,
+  "api_token": "replace-this-test-token"
+}

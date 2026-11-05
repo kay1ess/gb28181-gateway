@@ -1,0 +1,11 @@
+diff --git a/api/source/mk_rtp_shared.cpp b/api/source/mk_rtp_shared.cpp
+--- a/api/source/mk_rtp_shared.cpp
++++ b/api/source/mk_rtp_shared.cpp
+@@ -159,7 +159,6 @@
+             result->mode = mode;
+             result->id = id;
+             result->process = RtpProcess::createProcess(MediaTuple { DEFAULT_VHOST, kRtpAppName, id, "" }, poller_);
+-            result->process->setOnlyTrack(RtpProcess::kOnlyVideo);
+             result->process->setSharedSocket(mode == 0);
+             std::weak_ptr<SharedListener> weak = shared_from_this();
+             std::weak_ptr<SharedStream> stream = result;

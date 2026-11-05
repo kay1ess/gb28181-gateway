@@ -1,0 +1,21 @@
+---
+Language: Cpp
+BasedOnStyle: Chromium
+Standard: c++17
+SeparateDefinitionBlocks: Always
+AllowShortFunctionsOnASingleLine: None
+AllowShortEnumsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<(drogon/|json/|resip/|rutil/|trantor/|mk_mediakit\.h>|sqlite3\.h>|tinyxml2\.h>)'
+    Priority: 3
+  - Regex: '^<(arpa/|net/|netinet/|sys/|[^/]+\.h>)'
+    Priority: 1
+  - Regex: '^<[^/]+>$'
+    Priority: 2
+  - Regex: '^<'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 4
+...

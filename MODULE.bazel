@@ -1,0 +1,36 @@
+module(
+    name = "gb28181_server",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_foreign_cc", version = "0.16.0")
+bazel_dep(name = "platforms", version = "1.0.0")
+
+# Evaluated only when the linux_arm64 configuration selects this toolchain.
+aarch64_linux_gnu = use_repo_rule("//build/toolchains:aarch64_linux_gnu.bzl", "aarch64_linux_gnu")
+
+aarch64_linux_gnu(name = "aarch64_linux_gnu")
+
+# Use CMake installed on the build host. Avoid rebuilding a separate
+# GNU tool suite merely to invoke upstream CMake projects on Windows.
+register_toolchains(
+    "@rules_foreign_cc//toolchains:preinstalled_cmake_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_make_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_m4_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_autoconf_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_automake_toolchain",
+)
+
+dependencies = use_extension("//third_party:workspace.bzl", "deps")
+use_repo(
+    dependencies,
+    "drogon_src",
+    "jsoncpp_src",
+    "resiprocate_src",
+    "sqlite_src",
+    "tinyxml2_src",
+    "zlib_src",
+    "zlmediakit_src",
+)

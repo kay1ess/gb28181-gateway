@@ -1,0 +1,29 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "catalog",
+    srcs = ["catalog_accumulator.cc"],
+    hdrs = ["catalog_accumulator.h"],
+    visibility = [
+        "//src:__subpackages__",
+        "//tests:__subpackages__",
+    ],
+    deps = ["//:api"],
+)
+
+cc_library(
+    name = "application",
+    srcs = ["application.cc"],
+    hdrs = ["application.h"],
+    visibility = [
+        "//src/runtime:__pkg__",
+        "//tests:__subpackages__",
+    ],
+    deps = [
+        ":catalog",
+        "//:api",
+        "//src/core",
+        "//src/core:task_runner",
+        "//src/ports",
+    ],
+)

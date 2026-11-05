@@ -1,0 +1,17 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "media",
+    srcs = ["zlm_service.cc"],
+    hdrs = ["zlm_service.h"],
+    visibility = [
+        "//src:__subpackages__",
+        "//tests:__subpackages__",
+    ],
+    deps = [
+        "//:api",
+        "//src/core",
+        "//src/ports",
+        "//third_party:zlmediakit",
+    ],
+)

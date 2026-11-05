@@ -1,0 +1,15 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# Compile and link the public interfaces together, without opening listeners.
+cc_binary(
+    name = "smoke",
+    srcs = ["smoke.cc"],
+    copts = select({
+        "//third_party:windows": [
+            "/std:c++17",
+            "/utf-8",
+        ],
+        "//conditions:default": ["-std=c++17"],
+    }),
+    deps = ["//third_party:all_deps"],
+)

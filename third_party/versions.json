@@ -1,0 +1,58 @@
+[
+  {
+    "name": "resiprocate",
+    "remote": "https://github.com/resiprocate/resiprocate.git",
+    "commit": "44eb4c86d3109acb7db819f43566b4eeb29deb04",
+    "submodules": []
+  },
+  {
+    "name": "drogon",
+    "remote": "https://github.com/drogonframework/drogon.git",
+    "commit": "a6d52c282be3b7c4ae005dfaaebaa38fcaf8afb4",
+    "submodules": [
+      " 350875b76576466a50383d379178c90001179a76 trantor (heads/master)"
+    ]
+  },
+  {
+    "name": "zlmediakit",
+    "remote": "https://github.com/ZLMediaKit/ZLMediaKit.git",
+    "commit": "fb3265725f0880da1f52a3cc6e6eb04bbc327fa3",
+    "submodules": [
+      " d7d601200f65f3111dbf9d20ed7f14d2654bbd6e 3rdpart/ZLToolKit (d7d6012)",
+      " ca98c98457b1163cca1f7d8db62827c115fec6d1 3rdpart/jsoncpp (ca98c98)",
+      " 21c4451ff2e4c4bb1c817e606c8b4e5deac1e719 3rdpart/media-server (21c4451)",
+      " ed5057ded698e305210269dafa57574ecf964483 3rdpart/pybind11 (ed5057d)",
+      " 6689195ac89462d40accd88f13dfde58902da57b www/webassist (heads/main)"
+    ]
+  },
+  {
+    "name": "sqlite",
+    "version": "3.46.1",
+    "url": "https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip",
+    "sha256": "77823cb110929c2bcb0f5d48e4833b5c59a8a6e40cdea3936b99e199dbbe5784"
+  },
+  {
+    "name": "tinyxml2",
+    "remote": "https://github.com/leethomason/tinyxml2.git",
+    "commit": "321ea883b7190d4e85cae5512a12e5eaa8f8731f",
+    "version": "10.0.0"
+  },
+  {
+    "name": "zlib",
+    "version": "1.3.1",
+    "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+    "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
+  },
+  {
+    "name": "rules_cc",
+    "version": "0.2.18"
+  },
+  {
+    "name": "rules_foreign_cc",
+    "version": "0.16.0"
+  },
+  {
+    "name": "platforms",
+    "version": "1.0.0"
+  }
+]

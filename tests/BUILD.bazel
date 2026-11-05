@@ -1,0 +1,244 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "test_support",
+    hdrs = ["test_support.h"],
+)
+
+cc_test(
+    name = "http_response_test",
+    srcs = ["http_response_test.cc"],
+    deps = [
+        ":test_support",
+        "//apps/server:responses",
+    ],
+)
+
+cc_library(
+    name = "udp_peer",
+    hdrs = ["udp_peer.h"],
+    linkopts = select({
+        "//third_party:windows": ["ws2_32.lib"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "child_process",
+    hdrs = ["child_process.h"],
+)
+
+cc_library(
+    name = "sdk_flow",
+    hdrs = ["sdk_flow.h"],
+    deps = ["//:sdk"],
+)
+
+cc_test(
+    name = "sdk_soak_test",
+    timeout = "eternal",
+    srcs = ["sdk_soak_test.cc"],
+    linkopts = select({
+        "//third_party:windows": ["psapi.lib"],
+        "//conditions:default": [],
+    }),
+    tags = [
+        "manual",
+        "stability",
+    ],
+    deps = [
+        ":child_process",
+        ":sdk_flow",
+        ":udp_peer",
+    ],
+)
+
+cc_test(
+    name = "sdk_fault_test",
+    timeout = "long",
+    srcs = ["sdk_fault_test.cc"],
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":sdk_flow",
+        ":udp_peer",
+        "//src/adapters/storage/sqlite:storage",
+    ],
+)
+
+cc_test(
+    name = "sdk_catalog_test",
+    timeout = "moderate",
+    srcs = ["sdk_catalog_test.cc"],
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":sdk_flow",
+        ":udp_peer",
+    ],
+)
+
+cc_test(
+    name = "cascade_test",
+    timeout = "moderate",
+    srcs = ["cascade_test.cc"],
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":sdk_flow",
+        ":udp_peer",
+    ],
+)
+
+cc_test(
+    name = "storage_test",
+    srcs = ["storage_test.cc"],
+    deps = [
+        ":test_support",
+        "//src/adapters/storage/sqlite:storage",
+    ],
+)
+
+cc_test(
+    name = "task_runner_test",
+    srcs = ["task_runner_test.cc"],
+    deps = [
+        ":test_support",
+        "//:api",
+        "//src/core:task_runner",
+    ],
+)
+
+cc_test(
+    name = "protocol_test",
+    srcs = ["protocol_test.cc"],
+    deps = [
+        ":test_support",
+        "//src/adapters/sip:codec",
+        "//src/application:catalog",
+    ],
+)
+
+cc_test(
+    name = "media_test",
+    timeout = "short",
+    srcs = ["media_test.cc"],
+    deps = [
+        ":test_support",
+        ":udp_peer",
+        "//src/adapters/media",
+    ],
+)
+
+cc_test(
+    name = "media_shared_test",
+    timeout = "moderate",
+    srcs = ["media_shared_test.cc"],
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":test_support",
+        ":udp_peer",
+        "//src/adapters/media",
+    ],
+)
+
+cc_test(
+    name = "sip_test",
+    timeout = "short",
+    srcs = ["sip_test.cc"],
+    deps = [
+        ":test_support",
+        ":udp_peer",
+        "//src/adapters/sip",
+        "//third_party:dum",
+    ],
+)
+
+cc_test(
+    name = "sdk_test",
+    timeout = "short",
+    srcs = ["sdk_test.cc"],
+    deps = [
+        ":test_support",
+        ":udp_peer",
+        "//:sdk",
+    ],
+)
+
+cc_test(
+    name = "sdk_integration_test",
+    timeout = "moderate",
+    srcs = ["sdk_integration_test.cc"],
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":udp_peer",
+        "//:sdk",
+    ],
+)
+
+cc_test(
+    name = "sdk_third_party_test",
+    timeout = "moderate",
+    srcs = ["sdk_integration_test.cc"],
+    env = {"GB_PEER_KIND": "mickey"},
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":udp_peer",
+        "//:sdk",
+    ],
+)
+
+cc_test(
+    name = "http_integration_test",
+    timeout = "moderate",
+    srcs = ["http_integration_test.cc"],
+    data = ["//apps/server"],
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":udp_peer",
+        "//third_party:drogon",
+    ],
+)
+
+cc_test(
+    name = "http_third_party_test",
+    timeout = "moderate",
+    srcs = ["http_integration_test.cc"],
+    data = ["//apps/server"],
+    env = {"GB_PEER_KIND": "mickey"},
+    tags = [
+        "integration",
+        "manual",
+    ],
+    deps = [
+        ":child_process",
+        ":udp_peer",
+        "//third_party:drogon",
+    ],
+)

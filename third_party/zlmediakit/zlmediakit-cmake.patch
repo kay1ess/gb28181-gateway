@@ -1,0 +1,28 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c1c9872..becd8a0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -112,7 +112,7 @@ string(TOLOWER ${CMAKE_SYSTEM_NAME} SYSTEM_NAME_LOWER)
+ # Windows 也不再区分 32/64
+ # Set the output directory, including bin, lib and other files
+ # Windows no longer distinguishes 32/64
+-set(OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/release/${SYSTEM_NAME_LOWER}/${CMAKE_BUILD_TYPE})
++set(OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/release/${SYSTEM_NAME_LOWER}/${CMAKE_BUILD_TYPE})
+ set(LIBRARY_OUTPUT_PATH    ${OUTPUT_DIR})
+ set(EXECUTABLE_OUTPUT_PATH ${OUTPUT_DIR})
+ 
+@@ -607,9 +607,11 @@ endif ()
+ 
+ # 拷贝www文件夹、配置文件、默认证书
+ # Copy www folder, configuration file, default certificate
+-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/www" DESTINATION ${EXECUTABLE_OUTPUT_PATH})
+-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/conf/config.ini" DESTINATION ${EXECUTABLE_OUTPUT_PATH})
+-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/default.pem" DESTINATION ${EXECUTABLE_OUTPUT_PATH})
++if(ENABLE_SERVER OR ENABLE_TESTS)
++  file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/www" DESTINATION ${EXECUTABLE_OUTPUT_PATH})
++  file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/conf/config.ini" DESTINATION ${EXECUTABLE_OUTPUT_PATH})
++  file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/default.pem" DESTINATION ${EXECUTABLE_OUTPUT_PATH})
++endif()
+ 
+ if (ENABLE_FFMPEG)
+   file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/DejaVuSans.ttf" DESTINATION ${EXECUTABLE_OUTPUT_PATH})

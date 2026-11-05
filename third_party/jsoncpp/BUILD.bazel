@@ -1,0 +1,4 @@
+exports_files([
+    "jsoncpp.BUILD",
+    "jsoncpp-cxx-standard.patch",
+])

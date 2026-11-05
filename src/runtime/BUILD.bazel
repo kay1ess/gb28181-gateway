@@ -1,0 +1,14 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "runtime",
+    srcs = ["client.cc"],
+    visibility = ["//:__pkg__"],
+    deps = [
+        "//:api",
+        "//src/adapters/media",
+        "//src/adapters/sip",
+        "//src/adapters/storage/sqlite:storage",
+        "//src/application",
+    ],
+)

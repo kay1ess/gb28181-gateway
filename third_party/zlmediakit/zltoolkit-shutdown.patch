@@ -1,0 +1,30 @@
+diff --git a/3rdpart/ZLToolKit/src/Thread/TaskExecutor.cpp b/3rdpart/ZLToolKit/src/Thread/TaskExecutor.cpp
+index c7082b1..d46d583 100644
+--- a/3rdpart/ZLToolKit/src/Thread/TaskExecutor.cpp
++++ b/3rdpart/ZLToolKit/src/Thread/TaskExecutor.cpp
+@@ -253,4 +253,10 @@ size_t TaskExecutorGetterImp::addPoller(const string &name, size_t size, int pri
+     return size;
+ }
+ 
++void TaskExecutorGetterImp::shutdown() {
++    for (auto &executor : _threads) {
++        std::static_pointer_cast<EventPoller>(executor)->shutdown();
++    }
++}
++
+ }//toolkit
+diff --git a/3rdpart/ZLToolKit/src/Thread/TaskExecutor.h b/3rdpart/ZLToolKit/src/Thread/TaskExecutor.h
+index e12236f..e2c757a 100644
+--- a/3rdpart/ZLToolKit/src/Thread/TaskExecutor.h
++++ b/3rdpart/ZLToolKit/src/Thread/TaskExecutor.h
+@@ -291,6 +291,10 @@ public:
+      */
+     void for_each(const std::function<void(const TaskExecutor::Ptr &)> &cb);
+ 
++    // Final process teardown only. Call before unloading a Windows DLL:
++    // joining worker threads from DLL static destructors holds the loader lock.
++    void shutdown();
++
+     /**
+      * 获取线程数
+      */

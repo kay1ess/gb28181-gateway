@@ -1,0 +1,10 @@
+exports_files(["sqlite.BUILD"])
+
+alias(
+    name = "sqlite",
+    actual = "//third_party:sqlite",
+    visibility = [
+        "//src/adapters/storage/sqlite:__pkg__",
+        "//tests:__subpackages__",
+    ],
+)

@@ -1,0 +1,88 @@
+diff --git a/api/include/mk_common.h b/api/include/mk_common.h
+index 78233ba..ad6f9f0 100755
+--- a/api/include/mk_common.h
++++ b/api/include/mk_common.h
+@@ -117,6 +117,11 @@ API_EXPORT void API_CALL mk_env_init(const mk_config *cfg);
+  */
+ API_EXPORT void API_CALL mk_stop_all_server();
+ 
++// Local integration extension: terminal process teardown, not service Stop.
++// Close all C API handles first; do not call from a media callback or DllMain.
++// No C SDK operations are permitted after this call.
++API_EXPORT void API_CALL mk_env_shutdown();
++
+ /**
+  * 基础类型参数版本的mk_env_init，为了方便其他语言调用
+  * @param thread_num 线程数
+diff --git a/api/source/mk_common.cpp b/api/source/mk_common.cpp
+index 3e3f5ec..8abe50e 100644
+--- a/api/source/mk_common.cpp
++++ b/api/source/mk_common.cpp
+@@ -92,6 +92,13 @@ API_EXPORT void API_CALL mk_stop_all_server(){
+     stopAllTcpServer();
+ }
+ 
++API_EXPORT void API_CALL mk_env_shutdown() {
++    mk_stop_all_server();
++    WorkThreadPool::Instance().shutdown();
++    EventPollerPool::Instance().shutdown();
++    Logger::Instance().setWriter(nullptr);
++}
++
+ API_EXPORT void API_CALL mk_env_init2(int thread_num,
+                                       int log_level,
+                                       int log_mask,
+diff --git a/api/source/mk_rtp_server.cpp b/api/source/mk_rtp_server.cpp
+index c9a19ed..621146d 100644
+--- a/api/source/mk_rtp_server.cpp
++++ b/api/source/mk_rtp_server.cpp
+@@ -17,24 +17,36 @@ using namespace toolkit;
+ using namespace mediakit;
+ 
+ API_EXPORT mk_rtp_server API_CALL mk_rtp_server_create(uint16_t port, int tcp_mode, const char *stream_id) {
+-    RtpServer::Ptr *server = new RtpServer::Ptr(new RtpServer);
++    try {
++    std::unique_ptr<RtpServer::Ptr> server(new RtpServer::Ptr(new RtpServer));
+     GET_CONFIG(std::string, local_ip, General::kListenIP)
+     (*server)->start(port, local_ip.c_str(), MediaTuple { DEFAULT_VHOST, kRtpAppName, stream_id, "" }, (RtpServer::TcpMode)tcp_mode);
+-    return (mk_rtp_server)server;
++    return (mk_rtp_server)server.release();
++    } catch (...) {
++        return nullptr;
++    }
+ }
+ 
+ API_EXPORT mk_rtp_server API_CALL mk_rtp_server_create2(uint16_t port, int tcp_mode, const char *vhost, const char *app, const char *stream_id) {
+-    RtpServer::Ptr *server = new RtpServer::Ptr(new RtpServer);
++    try {
++    std::unique_ptr<RtpServer::Ptr> server(new RtpServer::Ptr(new RtpServer));
+     GET_CONFIG(std::string, local_ip, General::kListenIP)
+     (*server)->start(port, local_ip.c_str(), MediaTuple { vhost, app, stream_id, "" }, (RtpServer::TcpMode)tcp_mode);
+-    return (mk_rtp_server)server;
++    return (mk_rtp_server)server.release();
++    } catch (...) {
++        return nullptr;
++    }
+ }
+ 
+ API_EXPORT mk_rtp_server API_CALL mk_rtp_server_create3(uint16_t port, int tcp_mode, const char *vhost, const char *app, const char *stream_id, int multiplex) {
+-    RtpServer::Ptr *server = new RtpServer::Ptr(new RtpServer);
++    try {
++    std::unique_ptr<RtpServer::Ptr> server(new RtpServer::Ptr(new RtpServer));
+     GET_CONFIG(std::string, local_ip, General::kListenIP)
+     (*server)->start(port, local_ip.c_str(), MediaTuple { vhost, app, stream_id, "" }, (RtpServer::TcpMode)tcp_mode,multiplex);
+-    return (mk_rtp_server)server;
++    return (mk_rtp_server)server.release();
++    } catch (...) {
++        return nullptr;
++    }
+ }
+ 
+ API_EXPORT void API_CALL mk_rtp_server_connect(mk_rtp_server ctx, const char *dst_url, uint16_t dst_port, on_mk_rtp_server_connected cb, void *user_data) {
+@@ -139,4 +151,4 @@ API_EXPORT void API_CALL mk_rtp_server_set_on_detach(mk_rtp_server ctx, on_mk_rt
+     WarnL << "请打开ENABLE_RTPPROXY后再编译";
+ }
+ 
+-#endif
+\ No newline at end of file
++#endif
