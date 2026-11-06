@@ -135,6 +135,8 @@ struct Playback {
   int64_t negotiated_ms = 0;
   int64_t media_ready_ms = 0;
   int64_t ready_ms = 0;
+  // Zero indicates the legacy lease-based playback lifetime.
+  uint32_t idle_timeout_seconds = 0;
 };
 
 struct PlaybackLease {
@@ -144,9 +146,12 @@ struct PlaybackLease {
 };
 
 struct StartLiveRequest {
+  // Legacy selector. Leave empty when starting by platform and channel.
   ResourceId resource_id;
   // Omit to resolve the platform default when the request is handled.
   std::optional<RtpReceiveMode> mode;
+  PlatformId platform_id;
+  std::string channel_gb_id;
 };
 
 struct Statistics {

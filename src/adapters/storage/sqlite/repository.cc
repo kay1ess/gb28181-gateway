@@ -185,6 +185,23 @@ Result<Resource> SqliteRepository::FindResource(const ResourceId& id) {
   }
 }
 
+Result<Resource> SqliteRepository::FindResourceByChannel(
+    const PlatformId& platform_id,
+    const std::string& channel_gb_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  try {
+    Statement statement(
+        database_, "SELECT * FROM resources WHERE platform_id=? AND gb_id=?");
+    statement.Bind(1, platform_id);
+    statement.Bind(2, channel_gb_id);
+    if (!statement.Step())
+      return Missing();
+    return ReadResource(statement);
+  } catch (const DatabaseError& error) {
+    return TranslateError(error, false);
+  }
+}
+
 Result<std::vector<Resource>> SqliteRepository::ListResources(
     const ResourceFilter& filter) {
   if (filter.limit == 0 || filter.limit > 1000)

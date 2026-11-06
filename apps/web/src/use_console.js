@@ -155,20 +155,15 @@ export function useConsole() {
   }
   async function refreshSession(session) {
     try {
-      // Renew before expiry, even when the previous readiness request failed.
-      if (
-        !session.released &&
-        !terminal(session.playback.state) &&
-        session.lease.expires_ms - Date.now() < 30000
-      ) {
-        session.lease = await api.renew(session.lease.id);
-      }
-      session.playback = await api.playback(session.lease.playback_id);
+      const playback = await api.playback(session.lease.playback_id);
+      session.playback =
+        !terminal(playback.state) && !playback.idle_timeout_seconds
+          ? await api.playbackAddress(playback.id)
+          : playback;
       session.problem = '';
     } catch (cause) {
       session.problem = cause.message;
-      if ([1004, 1006].includes(cause.code) || session.lease.expires_ms <= Date.now()) {
-        // Keep the row for inspection, but never keep renewing a lost lease.
+      if ([1004, 1006].includes(cause.code)) {
         session.released = true;
       }
     }
@@ -270,7 +265,7 @@ export function useConsole() {
       if (!quiet) report(cause);
     } finally {
       if (current === generation) {
-        // A catalog/health error must not prevent unrelated leases renewing.
+        // A catalog/health error must not prevent playback status updates.
         await Promise.all(activeSessions.value.map(refreshSession));
         saveSessions();
       }
@@ -301,7 +296,7 @@ export function useConsole() {
         sessions.value =
           read('gb.connection', {}).base === base &&
           read('gb.connection', {}).token === settings.token
-            ? read('gb.sessions', []).filter((s) => s.lease?.expires_ms > Date.now() && !s.released)
+            ? read('gb.sessions', []).filter((s) => s.lease?.playback_id && !s.released)
             : [];
         jobs.value = [];
         clearResources();
@@ -507,16 +502,18 @@ export function useConsole() {
     view.value = 'resources';
     if (activeSessions.value.some((session) => session.resource.id === resource.id)) return;
     await run(`play:${resource.id}`, async () => {
-      const lease = await api.start(resource.id);
+      const lease = await api.start(resource.platform_id, resource.gb_id);
+      let playback;
+      try {
+        playback = await api.playbackAddress(lease.playback_id);
+      } catch (cause) {
+        await api.release(lease.id).catch(() => {});
+        throw cause;
+      }
       const session = {
         lease,
         resource: { ...resource },
-        playback: {
-          id: lease.playback_id,
-          state: 'negotiating',
-          mode: platform.default_receive_mode || 'udp',
-          endpoints: [],
-        },
+        playback,
         released: false,
         problem: '',
       };
@@ -539,8 +536,7 @@ export function useConsole() {
         await refresh();
         return;
       }
-      if (action === 'renew') session.lease = await api.renew(session.lease.id);
-      else if (action === 'release') {
+      if (action === 'release') {
         await api.release(session.lease.id);
         session.released = true;
       } else if (action === 'force') {
@@ -570,7 +566,7 @@ export function useConsole() {
   onMounted(() => {
     if (settings.token) connect();
   });
-  // On page close, no new renewals are sent. The server expires the lease.
+  // Closing the player disconnects its reader. The server reaps idle streams.
   onBeforeUnmount(() => {
     clearInterval(timer);
     closeEvents();

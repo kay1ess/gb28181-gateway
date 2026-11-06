@@ -58,16 +58,29 @@
 | 方法 | URL | 说明 |
 | --- | --- | --- |
 | POST | `/api/playbacks` | 点播，202，返回租约。同一资源、同一收流方式复用播放，每次一条新租约 |
-| GET | `/api/playbacks/{id}` | 用租约里的 `playback_id` 查询 |
+| POST | `/api/playbacks/{id}/address` | 获取播放地址并启用按观看连接保活 |
+| GET | `/api/playbacks/{id}` | 用 `playback_id` 查询状态与地址 |
 | POST | `/api/playbacks/{id}/stop` | 结束该播放和全部租约 |
-| POST | `/api/playback-leases/{id}/renew` | 续租。租约不存在或已过期返回 404 |
-| DELETE | `/api/playback-leases/{id}` | 释放一条租约。重复释放仍返回 200。最后一条释放或到期后播放结束 |
+| POST | `/api/playback-leases/{id}/renew` | 兼容旧租约。租约不存在或已过期返回 404 |
+| DELETE | `/api/playback-leases/{id}` | 释放一条租约。重复释放仍返回 200。旧模式下最后一条释放或到期后播放结束 |
 
 ```json
-{"resource_id": "lower_1:34020000001320000001", "mode": "udp"}
+{"platform_id": "lower_1", "channel_gb_id": "34020000001320000001", "mode": "udp"}
 ```
 
+`platform_id` 是上级保存的下级 ID，`channel_gb_id` 对应资源列表里的 `gb_id`。服务端在指定下级的目录里精确匹配通道。旧调用仍可只传 `resource_id`。两种定位方式混用或缺少必填字段时返回 400，指定下级的目录里找不到通道时返回 404。
+
 `mode` 可省略，省略时用下级的 `default_receive_mode`。`udp` 由上级收 RTP，`tcp_passive` 由上级监听，`tcp_active` 由上级去连下级。
+
+点播返回租约 `id`、`playback_id` 和 `expires_ms`。新调用方用 `playback_id` 请求 `POST /api/playbacks/{id}/address`，请求体可省略，也可指定空闲秒数。
+
+```json
+{"idle_timeout_seconds": 60}
+```
+
+范围是 1–86400 秒，默认 60 秒。设置作用于整路共享播放，后续取地址时使用最新指定的值。只要还有 RTSP 或 HTTP-FLV 观看连接，服务端就保持摄像头连接。媒体就绪后一直无人拉流，或最后一个观看者断开后持续无人拉流达到超时，服务端停止向摄像头拉流。此模式无需续租。查询状态和重复取地址都不会重置已开始的空闲计时。
+
+地址请求返回当前播放对象。媒体未就绪时 `endpoints` 为空，可继续用 GET 查询。用 `playback_id` 强制停止播放，或用租约 `id` 释放旧租约。
 
 `state` 为 `playing` 后使用 `endpoints`。`rtsp` 与 `http-flv` 地址由媒体服务提供，不走 Bearer 鉴权。播放失败时查看播放对象的 `error`，查询本身仍可返回 200。
 

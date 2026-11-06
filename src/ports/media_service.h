@@ -54,6 +54,7 @@ class IMediaService {
                                        uint16_t port) = 0;
   virtual Result<void> CloseReceiver(const ReceiverId& id) = 0;
   virtual Result<Receiver> GetReceiver(const ReceiverId& id) = 0;
+  virtual Result<uint32_t> GetReaderCount(const ReceiverId& id) = 0;
   virtual uint32_t ReceiverCount() const = 0;
 };
 }  // namespace gb28181

@@ -20,6 +20,9 @@ class IResourceRepository {
  public:
   virtual ~IResourceRepository() = default;
   virtual Result<Resource> FindResource(const ResourceId& id) = 0;
+  virtual Result<Resource> FindResourceByChannel(
+      const PlatformId& platform_id,
+      const std::string& channel_gb_id) = 0;
   virtual Result<std::vector<Resource>> ListResources(
       const ResourceFilter& filter) = 0;
   // Called only with a fully aggregated catalog. A failure must preserve the

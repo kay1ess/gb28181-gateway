@@ -1,5 +1,9 @@
 #include "src/adapters/media/zlm_service.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -45,12 +49,24 @@ struct EngineRegistry {
   std::mutex mutex;
   std::weak_ptr<ZlmState> active;
   std::once_flag initialize;
+  bool initialized = false;
+  std::atomic<bool> shutdown{false};
 };
 
 EngineRegistry& Registry() {
   static EngineRegistry registry;
   return registry;
 }
+
+#ifdef _WIN32
+bool InHostExecutable(const EngineRegistry& registry) {
+  HMODULE module = nullptr;
+  return GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCWSTR>(&registry), &module) &&
+         module == GetModuleHandleW(nullptr);
+}
+#endif
 
 Error Failure(ErrorCode code) {
   return {code, ErrorMessage(code), {}};
@@ -187,7 +203,7 @@ Result<void> ZlmMediaService::Start(const Config& config,
                                     std::function<void(MediaEvent)> handler) {
   auto& registry = Registry();
   std::lock_guard<std::mutex> engine_lock(registry.mutex);
-  if (!registry.active.expired())
+  if (registry.shutdown || !registry.active.expired())
     return Failure(ErrorCode::kInvalidState);
   if (config.rtp_port == 65535 ||
       (config.rtp_port && (config.rtp_port == config.sip_port ||
@@ -196,20 +212,27 @@ Result<void> ZlmMediaService::Start(const Config& config,
                            config.rtp_port == config.media_rtsp_port)))
     return Failure(ErrorCode::kInvalidArgument);
   try {
-    std::call_once(registry.initialize, [] {
+    std::call_once(registry.initialize, [&registry] {
       mk_config options{};
       options.thread_num = 2;
-      options.log_level = 3;
+      // LInfo. ConsoleChannel writes to stdout.
+      options.log_level = 2;
       options.log_mask = LOG_CONSOLE;
       mk_env_init(&options);
-      // DLL static destructors run under the Windows loader lock. Join ZLM's
-      // process-global workers while normal execution is still permitted.
 #ifdef _WIN32
-      std::atexit([] { mk_env_shutdown(); });
+      // A DLL's exit hooks run under the loader lock. Its host must call the
+      // explicit shutdown API before unloading it.
+      if (InHostExecutable(registry)) {
+        std::atexit([] {
+          if (!Registry().shutdown)
+            mk_env_shutdown();
+        });
+      }
 #endif
       mk_events events{};
       events.on_mk_media_changed = MediaChanged;
       mk_events_listen(&events);
+      registry.initialized = true;
     });
     mk_set_option("general.listen_ip", config.bind_address.c_str());
     mk_set_option("protocol.enable_rtsp", "1");
@@ -253,6 +276,24 @@ Result<void> ZlmMediaService::Start(const Config& config,
     mk_stop_all_server();
     return Failure(ErrorCode::kMediaAllocationFailed);
   }
+}
+
+Result<void> ShutdownZlmEnvironment() {
+  auto& registry = Registry();
+  bool initialized = false;
+  {
+    std::lock_guard<std::mutex> lock(registry.mutex);
+    if (registry.shutdown)
+      return {};
+    if (!registry.active.expired())
+      return Failure(ErrorCode::kInvalidState);
+    registry.shutdown = true;
+    initialized = registry.initialized;
+  }
+  // Joining pollers can run media callbacks that consult the registry.
+  if (initialized)
+    mk_env_shutdown();
+  return {};
 }
 
 void ZlmMediaService::Stop() {
@@ -387,6 +428,42 @@ Result<Receiver> ZlmMediaService::GetReceiver(const ReceiverId& id) {
   if (found == state_->receivers.end())
     return Failure(ErrorCode::kNotFound);
   return found->second->snapshot;
+}
+
+Result<uint32_t> ZlmMediaService::GetReaderCount(const ReceiverId& id) {
+  // HTTP-FLV readers attach to the RTMP source. Find keeps each source alive
+  // until the callback returns.
+  struct ReaderCount {
+    uint32_t total = 0;
+    bool found = false;
+    bool failed = false;
+  } readers;
+
+  const auto count = [](void* data, const mk_media_source source) noexcept {
+    if (!source)
+      return;
+    auto& readers = *static_cast<ReaderCount*>(data);
+    try {
+      const int count = mk_media_source_get_reader_count(source);
+      readers.found = true;
+      if (count > 0)
+        readers.total += static_cast<uint32_t>(count);
+    } catch (...) {
+      readers.failed = true;
+    }
+  };
+  try {
+    for (const char* schema : {"rtsp", "rtmp"}) {
+      mk_media_source_find(schema, "__defaultVhost__", "rtp", id.c_str(), 0,
+                           &readers, count);
+    }
+  } catch (...) {
+    return Failure(ErrorCode::kInternalError);
+  }
+  if (readers.total || (readers.found && !readers.failed))
+    return readers.total;
+  return Failure(readers.failed ? ErrorCode::kInternalError
+                                : ErrorCode::kNotFound);
 }
 
 uint32_t ZlmMediaService::ReceiverCount() const {

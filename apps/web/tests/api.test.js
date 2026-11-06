@@ -11,8 +11,11 @@ test('omitting playback mode delegates default selection to the backend', async 
       return Response.json({ code: 0, data: {} });
     },
   });
-  await api.start('camera');
-  assert.deepEqual(body, { resource_id: 'camera' });
+  await api.start('lower_1', '34020000001320000001');
+  assert.deepEqual(body, {
+    platform_id: 'lower_1',
+    channel_gb_id: '34020000001320000001',
+  });
 });
 
 test('all routes carry Bearer auth, preserve opaque IDs, and use backend verbs', async () => {
@@ -38,10 +41,10 @@ test('all routes carry Bearer auth, preserve opaque IDs, and use backend verbs',
   await api.info(value, true);
   await api.status(value);
   await api.status(value, true);
-  await api.start(value, 'tcp_passive');
+  await api.start('lower_1', '34020000001320000001', 'tcp_passive');
   await api.playback(value);
   await api.forceStop(value);
-  await api.renew(value);
+  await api.playbackAddress(value, 15);
   await api.release(value);
   assert.equal(calls.length, 18);
   for (const call of calls) assert.equal(call.headers.Authorization, 'Bearer test-secret');
@@ -53,11 +56,15 @@ test('all routes carry Bearer auth, preserve opaque IDs, and use backend verbs',
   assert.equal(calls[10].method, 'POST');
   assert.equal(calls[12].url, '/api/resources/a%2Fb%3Fc/status-refresh');
   assert.deepEqual(JSON.parse(calls[13].body), {
-    resource_id: value,
+    platform_id: 'lower_1',
+    channel_gb_id: '34020000001320000001',
     mode: 'tcp_passive',
   });
   assert.equal(new URL(calls[7].url, 'http://test').searchParams.get('keyword'), '前门');
   assert.equal(calls[17].method, 'DELETE');
+  assert.equal(calls[16].url, '/api/playbacks/a%2Fb%3Fc/address');
+  assert.equal(calls[16].method, 'POST');
+  assert.deepEqual(JSON.parse(calls[16].body), { idle_timeout_seconds: 15 });
 });
 
 test('business errors preserve code and trace, even on HTTP 200', async () => {

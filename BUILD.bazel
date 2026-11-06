@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 
@@ -21,6 +22,35 @@ cc_library(
         "//:api",
         "//src/runtime",
     ],
+)
+
+alias(
+    name = "sdk_c",
+    actual = "//src/runtime:c_api",
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "gb28181_c_sdk.dll",
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = [":sdk_c"],
+)
+
+cc_binary(
+    name = "libgb28181_c_sdk.so",
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [":sdk_c"],
+)
+
+alias(
+    name = "sdk_c_shared",
+    actual = select({
+        "//third_party:windows": ":gb28181_c_sdk.dll",
+        "//conditions:default": ":libgb28181_c_sdk.so",
+    }),
+    visibility = ["//visibility:public"],
 )
 
 # Native objects combined for standalone Linux SDK consumers. Foreign archives

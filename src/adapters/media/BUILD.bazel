@@ -4,6 +4,10 @@ cc_library(
     name = "media",
     srcs = ["zlm_service.cc"],
     hdrs = ["zlm_service.h"],
+    local_defines = select({
+        "//third_party:windows": ["WIN32_LEAN_AND_MEAN"],
+        "//conditions:default": [],
+    }),
     visibility = [
         "//src:__subpackages__",
         "//tests:__subpackages__",

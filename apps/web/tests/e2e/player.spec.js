@@ -61,11 +61,12 @@ for (const codec of ['h264', 'h265']) {
       else if (path === '/api/resources') data = [resource];
       else if (path === '/api/playbacks' && method === 'POST')
         data = { id: 'lease', playback_id: 'play', expires_ms: Date.now() + 60000 };
-      else if (path === '/api/playbacks/play')
+      else if (path === '/api/playbacks/play' || path === '/api/playbacks/play/address')
         data = {
           id: 'play',
           state: 'playing',
           mode: 'udp',
+          idle_timeout_seconds: 60,
           endpoints: [{ protocol: 'http-flv', url: 'http://127.0.0.1:8081/rtp/sample.live.flv' }],
         };
       else if (path.startsWith('/api/playback-leases/')) data = null;

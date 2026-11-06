@@ -535,20 +535,28 @@ void RegisterRoutes(std::shared_ptr<Client> client, const std::string& token) {
                 });
           }),
       {drogon::Post, filter});
-  app.registerHandler("/api/playbacks",
-                      GuardRoot([client](const auto& request, auto reply,
-                                         const auto&, const auto& trace) {
-                        auto body = Body(request);
-                        StartLiveRequest live;
-                        live.resource_id = Text(body, "resource_id");
-                        if (body.isMember("mode"))
-                          live.mode = ReceiveMode(Text(body, "mode"));
-                        InvokeSdk<PlaybackLease>(
-                            reply, trace, 202, [&](auto done, auto options) {
-                              return client->StartLive(live, done, options);
-                            });
-                      }),
-                      {drogon::Post, filter});
+  app.registerHandler(
+      "/api/playbacks",
+      GuardRoot([client](const auto& request, auto reply, const auto&,
+                         const auto& trace) {
+        auto body = Body(request);
+        StartLiveRequest live;
+        if (body.isMember("resource_id")) {
+          if (body.isMember("platform_id") || body.isMember("channel_gb_id"))
+            throw std::invalid_argument("mixed live selectors");
+          live.resource_id = Text(body, "resource_id");
+        } else {
+          live.platform_id = Text(body, "platform_id");
+          live.channel_gb_id = Text(body, "channel_gb_id");
+        }
+        if (body.isMember("mode"))
+          live.mode = ReceiveMode(Text(body, "mode"));
+        InvokeSdk<PlaybackLease>(
+            reply, trace, 202, [&](auto done, auto options) {
+              return client->StartLive(live, done, options);
+            });
+      }),
+      {drogon::Post, filter});
   app.registerHandler("/api/playbacks/{id}",
                       Guard([client](const auto&, auto reply, const auto& id,
                                      const auto& trace) {
@@ -558,6 +566,25 @@ void RegisterRoutes(std::shared_ptr<Client> client, const std::string& token) {
                             });
                       }),
                       {drogon::Get, filter});
+  app.registerHandler(
+      "/api/playbacks/{id}/address",
+      Guard([client](const auto& request, auto reply, const auto& id,
+                     const auto& trace) {
+        std::optional<uint32_t> idle_timeout_seconds;
+        if (!request->body().empty()) {
+          const auto body = Body(request);
+          if (body.isMember("idle_timeout_seconds")) {
+            if (!body["idle_timeout_seconds"].isUInt())
+              throw std::invalid_argument("invalid idle timeout");
+            idle_timeout_seconds = body["idle_timeout_seconds"].asUInt();
+          }
+        }
+        InvokeSdk<Playback>(reply, trace, 200, [&](auto done, auto options) {
+          return client->GetPlaybackAddress(id, idle_timeout_seconds, done,
+                                            options);
+        });
+      }),
+      {drogon::Post, filter});
   app.registerHandler(
       "/api/playbacks/{id}/stop",
       Guard(

@@ -486,6 +486,12 @@ class State : public std::enable_shared_from_this<State> {
 
   void StartLive(StartLiveRequest live,
                  const RequestPtr<PlaybackLease>& request) {
+    const bool by_channel = live.resource_id.empty();
+    if (by_channel ? !Identifier(live.platform_id) || live.channel_gb_id.empty()
+                   : !live.platform_id.empty() || !live.channel_gb_id.empty()) {
+      Finish<PlaybackLease>(request, Failure(ErrorCode::kInvalidArgument));
+      return;
+    }
     if (live.mode && live.mode != RtpReceiveMode::kUdp &&
         live.mode != RtpReceiveMode::kTcpPassive &&
         live.mode != RtpReceiveMode::kTcpActive) {
@@ -493,10 +499,14 @@ class State : public std::enable_shared_from_this<State> {
       return;
     }
     Database<Resource>(
-        [id = live.resource_id](IRepository& repository) {
-          return repository.FindResource(id);
+        [live, by_channel](IRepository& repository) {
+          if (by_channel)
+            return repository.FindResourceByChannel(live.platform_id,
+                                                    live.channel_gb_id);
+          return repository.FindResource(live.resource_id);
         },
-        [self = shared_from_this(), live, request](Result<Resource> result) {
+        [self = shared_from_this(), requested_mode = live.mode,
+         request](Result<Resource> result) {
           if (request->done)
             return;
           if (!result) {
@@ -516,9 +526,9 @@ class State : public std::enable_shared_from_this<State> {
                                           : ErrorCode::kResourceOffline));
             return;
           }
-          const auto mode =
-              live.mode.value_or(self->platforms_.at(resource.platform_id)
-                                     .snapshot.config.default_receive_mode);
+          const auto mode = requested_mode.value_or(
+              self->platforms_.at(resource.platform_id)
+                  .snapshot.config.default_receive_mode);
           for (auto& item : self->playbacks_) {
             if (Active(item.second.snapshot.state) &&
                 item.second.snapshot.resource_id == resource.id &&
@@ -572,6 +582,29 @@ class State : public std::enable_shared_from_this<State> {
       Finish<Playback>(request, Failure(ErrorCode::kNotFound));
     else
       Finish<Playback>(request, found->second.snapshot);
+  }
+
+  void GetPlaybackAddress(const PlaybackId& id,
+                          uint32_t idle_timeout_seconds,
+                          const RequestPtr<Playback>& request) {
+    if (!idle_timeout_seconds || idle_timeout_seconds > 86400) {
+      Finish<Playback>(request, Failure(ErrorCode::kInvalidArgument));
+      return;
+    }
+    auto found = playbacks_.find(id);
+    if (found == playbacks_.end()) {
+      Finish<Playback>(request, Failure(ErrorCode::kNotFound));
+      return;
+    }
+    auto& entry = found->second;
+    if (!Active(entry.snapshot.state)) {
+      Finish<Playback>(request, entry.snapshot.state == PlaybackState::kFailed
+                                    ? entry.snapshot.error
+                                    : Failure(ErrorCode::kInvalidState));
+      return;
+    }
+    entry.snapshot.idle_timeout_seconds = idle_timeout_seconds;
+    Finish<Playback>(request, entry.snapshot);
   }
 
   void WaitPlayback(const PlaybackId& id, const RequestPtr<Playback>& request) {
@@ -693,6 +726,7 @@ class State : public std::enable_shared_from_this<State> {
     Clock::time_point deadline;
     bool answer_received = false;
     bool media_ready = false;
+    std::optional<Clock::time_point> idle_since;
     std::set<PlaybackLeaseId> leases;
     std::vector<RequestPtr<Playback>> waiters;
   };
@@ -808,7 +842,7 @@ class State : public std::enable_shared_from_this<State> {
     auto& entry = playback->second;
     entry.leases.erase(id);
     entry.snapshot.consumers = static_cast<uint32_t>(entry.leases.size());
-    if (entry.leases.empty())
+    if (entry.leases.empty() && !entry.snapshot.idle_timeout_seconds)
       EndPlayback(entry, {});
     else
       PublishPlayback(entry);
@@ -1034,6 +1068,9 @@ class State : public std::enable_shared_from_this<State> {
     if (!accepting_.load())
       return;
     const auto now = Clock::now();
+    const bool check_readers = now >= next_reader_check_;
+    if (check_readers)
+      next_reader_check_ = now + std::chrono::milliseconds(250);
     std::vector<uint32_t> expired_queries;
     for (const auto& query : queries_)
       if (query.second.deadline <= now || query.second.cancellation.cancelled())
@@ -1087,6 +1124,21 @@ class State : public std::enable_shared_from_this<State> {
           entry.snapshot.state != PlaybackState::kPlaying &&
           entry.deadline <= now)
         EndPlayback(entry, Failure(ErrorCode::kMediaReceiveTimeout));
+      if (check_readers && entry.snapshot.state == PlaybackState::kPlaying &&
+          entry.snapshot.idle_timeout_seconds) {
+        const auto readers = media_->GetReaderCount(entry.snapshot.id);
+        if ((readers && readers.value() > 0) ||
+            (!readers && readers.error().code != ErrorCode::kNotFound)) {
+          entry.idle_since.reset();
+        } else {
+          if (!entry.idle_since)
+            entry.idle_since = now;
+          if (now - *entry.idle_since >=
+              std::chrono::seconds(entry.snapshot.idle_timeout_seconds)) {
+            EndPlayback(entry, {});
+          }
+        }
+      }
     }
     for (auto it = operations_.begin();
          operations_.size() > 256 && it != operations_.end();) {
@@ -1126,6 +1178,7 @@ class State : public std::enable_shared_from_this<State> {
   std::map<OperationId, Operation> operations_;
   std::map<PlaybackId, PlaybackEntry> playbacks_;
   std::map<PlaybackLeaseId, Lease> leases_;
+  Clock::time_point next_reader_check_{};
   std::mutex subscriptions_mutex_;
   uint64_t subscription_sequence_ = 0;
   std::map<uint64_t, std::shared_ptr<Subscription>> subscriptions_;
@@ -1353,6 +1406,17 @@ class Application final : public Client {
     return Submit<Playback>(
         std::move(done), std::move(options),
         [id](State& state, auto request) { state.WaitPlayback(id, request); });
+  }
+
+  Result<void> GetPlaybackAddress(PlaybackId id,
+                                  std::optional<uint32_t> idle_timeout_seconds,
+                                  Completion<Playback> done,
+                                  RequestOptions options) override {
+    return Submit<Playback>(std::move(done), std::move(options),
+                            [id, timeout = idle_timeout_seconds.value_or(60)](
+                                State& state, auto request) {
+                              state.GetPlaybackAddress(id, timeout, request);
+                            });
   }
 
   Result<void> RenewPlayback(PlaybackLeaseId id,

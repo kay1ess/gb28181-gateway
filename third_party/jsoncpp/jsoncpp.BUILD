@@ -18,6 +18,7 @@ cmake(
         "JSONCPP_WITH_POST_BUILD_UNITTEST": "OFF",
         "CMAKE_CXX_STANDARD": "17",
         "CMAKE_INSTALL_LIBDIR": "lib",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
         "CMAKE_POLICY_VERSION_MINIMUM": "3.5",
     },
     copts = select({

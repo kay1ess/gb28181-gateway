@@ -9,6 +9,7 @@ cc_library(
     deps = [
         "//:api",
         "//src/core",
+        "//src/core:sdk_json",
         "//third_party:drogon",
     ],
 )

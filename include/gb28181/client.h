@@ -2,6 +2,7 @@
 #define GB28181_INCLUDE_GB28181_CLIENT_H_
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "gb28181/async.h"
@@ -95,6 +96,14 @@ class Client {
   // callbacks that have not started; an already running callback may finish.
   virtual Result<uint64_t> SubscribeEvents(EventHandler handler) = 0;
   virtual void UnsubscribeEvents(uint64_t subscription_id) = 0;
+  // Enables reader-based retention for the shared playback. An omitted
+  // timeout defaults to 60 seconds. Returns the current snapshot, with
+  // endpoints once ready. The normal async timeout and cancellation apply.
+  virtual Result<void> GetPlaybackAddress(
+      PlaybackId id,
+      std::optional<uint32_t> idle_timeout_seconds,
+      Completion<Playback> completion,
+      RequestOptions options = {}) = 0;
 };
 
 std::unique_ptr<Client> CreateClient();

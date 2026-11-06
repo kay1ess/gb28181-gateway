@@ -12,3 +12,18 @@ cc_library(
         "//src/application",
     ],
 )
+
+cc_library(
+    name = "c_api",
+    srcs = ["c_api.cc"],
+    local_defines = ["GB28181_C_EXPORTS"],
+    visibility = ["//:__pkg__"],
+    deps = [
+        ":runtime",
+        "//:api",
+        "//src/adapters/media",
+        "//src/core",
+        "//src/core:sdk_json",
+    ],
+    alwayslink = True,
+)

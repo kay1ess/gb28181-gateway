@@ -286,13 +286,10 @@ function closeSync() {
                 <dl class="session-meta">
                   <dt>播放 ID</dt>
                   <dd class="mono">{{ session.playback.id }}</dd>
-                  <dt>SSRC / 观看数</dt>
-                  <dd>
-                    {{ session.playback.ssrc || '—' }} /
-                    {{ session.playback.consumers ?? '—' }}
-                  </dd>
-                  <dt>本页租约到期</dt>
-                  <dd>{{ formatTime(session.lease.expires_ms) }}</dd>
+                  <dt>SSRC</dt>
+                  <dd>{{ session.playback.ssrc || '—' }}</dd>
+                  <dt>无人拉流时断开</dt>
+                  <dd>{{ session.playback.idle_timeout_seconds || 60 }} 秒</dd>
                 </dl>
               </details>
               <div class="session-actions">

@@ -18,6 +18,9 @@ class SqliteRepository final : public IRepository {
   Result<std::vector<PlatformConfig>> ListPlatforms() override;
   Result<void> RemovePlatform(const PlatformId& id) override;
   Result<Resource> FindResource(const ResourceId& id) override;
+  Result<Resource> FindResourceByChannel(
+      const PlatformId& platform_id,
+      const std::string& channel_gb_id) override;
   Result<std::vector<Resource>> ListResources(
       const ResourceFilter& filter) override;
   Result<void> ReplaceCatalog(const PlatformId& id,

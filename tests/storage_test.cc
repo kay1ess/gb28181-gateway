@@ -51,6 +51,14 @@ void TestRepository(const std::filesystem::path& path) {
       "same GB code through different sharing source");
   Require(store.ListResources({}).value().size() == 3,
           "sharing source retained");
+  Require(
+      store.FindResourceByChannel("p1", "camera-a").value().id == "p1/a" &&
+          store.FindResourceByChannel("p2", "camera-a").value().id == "p2/a",
+      "channel lookup uses platform and preserves opaque resource IDs");
+  auto missing_channel = store.FindResourceByChannel("p2", "camera-b");
+  Require(
+      !missing_channel && missing_channel.error().code == ErrorCode::kNotFound,
+      "channel lookup does not fall back to another platform");
   DeviceInfo info{a.id, "name", "vendor", "model", "v1", 42};
   RequireOk(store.SaveDeviceInfo(info), "device info cache");
   RequireOk(store.SaveDeviceStatus({a.id, OnlineState::kOnline, "OK", 43}),

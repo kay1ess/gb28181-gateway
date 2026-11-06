@@ -2,35 +2,17 @@
 #define GB28181_APPS_SERVER_HTTP_RESPONSE_H_
 #include <functional>
 #include <string>
-#include <vector>
 
 #include <drogon/HttpResponse.h>
 #include <json/json.h>
 
-#include "gb28181/events.h"
 #include "gb28181/result.h"
-#include "gb28181/types.h"
+#include "src/core/sdk_json.h"
 
 namespace gb28181::http {
 using ResponseCallback = std::function<void(const drogon::HttpResponsePtr&)>;
 int HttpStatus(ErrorCode code);
-Json::Value Serialize(const Platform& value);
-Json::Value Serialize(const Resource& value);
-Json::Value Serialize(const Operation& value);
-Json::Value Serialize(const DeviceInfo& value);
-Json::Value Serialize(const DeviceStatus& value);
-Json::Value Serialize(const Playback& value);
-Json::Value Serialize(const PlaybackLease& value);
-Json::Value Serialize(const Statistics& value);
-Json::Value Serialize(const Event& value);
-
-template <typename T>
-Json::Value Serialize(const std::vector<T>& values) {
-  Json::Value result(Json::arrayValue);
-  for (const auto& value : values)
-    result.append(Serialize(value));
-  return result;
-}
+using gb28181::Serialize;
 
 drogon::HttpResponsePtr Response(Json::Value data,
                                  int status,

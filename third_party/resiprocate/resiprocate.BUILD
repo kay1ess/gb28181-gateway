@@ -13,6 +13,7 @@ cmake(
     cache_entries = {
         "CMAKE_CXX_STANDARD": "17",
         "CMAKE_INSTALL_LIBDIR": "lib",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
         "BUILD_SHARED_LIBS": "OFF",
         "WITH_SSL": "OFF",
         "WITH_C_ARES": "OFF",

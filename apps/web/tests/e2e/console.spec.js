@@ -172,6 +172,10 @@ async function mockApi(page) {
       return ok(state.resources.find((r) => r.id === path.split('/')[2]));
     }
     if (path === '/playbacks') {
+      const resource = state.resources.find(
+        (r) => r.platform_id === body.platform_id && r.gb_id === body.channel_gb_id,
+      );
+      if (!resource) return fail(1004, '资源不存在', 404);
       const number = state.calls.filter(
         (c) => c.path === '/playbacks' && c.method === 'POST',
       ).length;
@@ -181,11 +185,9 @@ async function mockApi(page) {
         state: 'playing',
         mode:
           body.mode ||
-          state.platforms.find(
-            (p) => p.id === state.resources.find((r) => r.id === body.resource_id)?.platform_id,
-          )?.default_receive_mode ||
+          state.platforms.find((p) => p.id === resource.platform_id)?.default_receive_mode ||
           'udp',
-        resource_id: body.resource_id,
+        resource_id: resource.id,
         ssrc: number,
         consumers: 1,
         endpoints: [{ protocol: 'rtsp', url: `rtsp://127.0.0.1:8554/rtp/${id}` }],
@@ -194,7 +196,7 @@ async function mockApi(page) {
       return ok({
         id: `lease_${number}`,
         playback_id: id,
-        expires_ms: Date.now() + 5000,
+        expires_ms: Date.now() - 1000,
       });
     }
     if (path.startsWith('/playback-leases/')) {
@@ -211,6 +213,7 @@ async function mockApi(page) {
     }
     if (path.startsWith('/playbacks/')) {
       const playback = state.sessions.get(path.split('/')[2]);
+      if (path.endsWith('/address')) playback.idle_timeout_seconds = 60;
       if (state.failMedia) {
         playback.state = 'failed';
         playback.error = { code: 4003, message: '媒体接收超时', trace_id: 'media_trace' };
@@ -305,7 +308,7 @@ test('catalog progress and completion arrive over the authenticated WebSocket', 
   await expect(page.getByText('3 / 3 项')).toHaveCount(0);
 });
 
-test('catalog, cached/live device queries, concurrent playback, auto renewal, reload and stop', async ({
+test('catalog, cached/live device queries, concurrent playback, reload and stop without renewal', async ({
   page,
 }) => {
   const state = await mockApi(page);
@@ -358,9 +361,7 @@ test('catalog, cached/live device queries, concurrent playback, auto renewal, re
     state.calls.find((c) => c.path === '/playbacks' && c.method === 'POST').body,
   ).not.toHaveProperty('mode');
   await expect(page.locator('.session-card')).toContainText('TCP 被动');
-  await expect
-    .poll(() => state.calls.filter((c) => c.path.endsWith('/renew')).length)
-    .toBeGreaterThan(0);
+  expect(state.calls.filter((c) => c.path.endsWith('/address'))).toHaveLength(1);
   await page.getByRole('button', { name: '继续选择设备' }).click();
   await expandPlatforms(page);
   await page
@@ -374,6 +375,8 @@ test('catalog, cached/live device queries, concurrent playback, auto renewal, re
   await expect(page.getByRole('dialog', { name: '视频预览' })).toBeVisible();
   await expect(page.locator('.session-card')).toHaveCount(2);
   expect(state.calls.filter((c) => c.path === '/playbacks' && c.method === 'POST')).toHaveLength(2);
+  expect(state.calls.filter((c) => c.path.endsWith('/address'))).toHaveLength(2);
+  expect(state.calls.filter((c) => c.path.endsWith('/renew'))).toHaveLength(0);
   await page
     .locator('.session-card')
     .filter({ hasText: '园区东门' })

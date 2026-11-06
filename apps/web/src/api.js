@@ -83,14 +83,20 @@ export function createApi({ token, base = '/api', fetcher = fetch }) {
         `/resources/${id(value)}/${refresh ? 'status-refresh' : 'status'}`,
         refresh ? 'POST' : 'GET',
       ),
-    start: (resourceId, mode) =>
+    start: (platformId, channelGbId, mode) =>
       request('/playbacks', 'POST', {
-        resource_id: resourceId,
+        platform_id: platformId,
+        channel_gb_id: channelGbId,
         ...(mode === undefined ? {} : { mode }),
       }),
     playback: (value) => request(`/playbacks/${id(value)}`),
+    playbackAddress: (value, idleTimeoutSeconds) =>
+      request(
+        `/playbacks/${id(value)}/address`,
+        'POST',
+        idleTimeoutSeconds === undefined ? undefined : { idle_timeout_seconds: idleTimeoutSeconds },
+      ),
     forceStop: (value) => request(`/playbacks/${id(value)}/stop`, 'POST'),
-    renew: (value) => request(`/playback-leases/${id(value)}/renew`, 'POST'),
     release: (value, options) =>
       request(`/playback-leases/${id(value)}`, 'DELETE', undefined, options),
   };

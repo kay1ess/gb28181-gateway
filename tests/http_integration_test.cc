@@ -368,21 +368,33 @@ void Test(const std::string& transport,
                      resource_path + "/status-refresh")["data"]["state"] ==
             "online",
         "HTTP device status");
+  Json::Value start;
+  start["platform_id"] = resources[0]["platform_id"];
+  start["channel_gb_id"] = resources[0]["gb_id"];
+  auto incomplete = start;
+  incomplete.removeMember("channel_gb_id");
+  http.Request(drogon::Post, "/api/playbacks", incomplete, 400);
+  auto mixed = start;
+  mixed["resource_id"] = resource_id;
+  http.Request(drogon::Post, "/api/playbacks", mixed, 400);
+  auto wrong_platform = start;
+  wrong_platform["platform_id"] = "other_lower";
+  http.Request(drogon::Post, "/api/playbacks", wrong_platform, 404);
   for (const std::string mode : {"udp", "tcp_passive", "tcp_active"}) {
     Json::Value defaults;
     defaults["default_receive_mode"] = mode;
     Check(http.Request(drogon::Patch, "/api/platforms/lower",
                        defaults)["data"]["default_receive_mode"] == mode,
           "platform mode persisted through HTTP");
-    Json::Value start;
-    start["resource_id"] = resource_id;
     const auto first =
         http.Request(drogon::Post, "/api/playbacks", start, 202)["data"];
     defaults["default_receive_mode"] = mode == "udp" ? "tcp_active" : "udp";
     http.Request(drogon::Patch, "/api/platforms/lower", defaults);
-    start["mode"] = mode;
+    Json::Value legacy_start;
+    legacy_start["resource_id"] = resource_id;
+    legacy_start["mode"] = mode;
     const auto second =
-        http.Request(drogon::Post, "/api/playbacks", start, 202)["data"];
+        http.Request(drogon::Post, "/api/playbacks", legacy_start, 202)["data"];
     Check(first["playback_id"] == second["playback_id"] &&
               first["id"] != second["id"],
           "HTTP shared upstream");
@@ -427,6 +439,76 @@ void Test(const std::string& transport,
     std::cout << "passed HTTP SIP=" << transport << " RTP=" << mode
               << std::endl;
   }
+  if (!independent && transport == "udp") {
+    for (const std::string protocol : {"rtsp", "http-flv", ""}) {
+      const auto lease =
+          http.Request(drogon::Post, "/api/playbacks", start, 202)["data"];
+      const auto path = "/api/playbacks/" + lease["playback_id"].asString();
+      const auto address_path = path + "/address";
+      Check(http.Request(drogon::Post,
+                         address_path)["data"]["idle_timeout_seconds"] == 60,
+            "HTTP playback address defaults to 60 seconds");
+      Json::Value timeout;
+      timeout["idle_timeout_seconds"] = 0;
+      http.Request(drogon::Post, address_path, timeout, 400);
+      Json::Value playback;
+      Until(
+          [&] {
+            playback = http.Request(drogon::Get, path)["data"];
+            return playback["state"] == "playing";
+          },
+          "managed HTTP playback becomes ready");
+      std::unique_ptr<gb28181::test::ChildProcess> reader;
+      if (!protocol.empty()) {
+        std::vector<std::string> command{Environment("GB_FFMPEG"), "-nostdin",
+                                         "-hide_banner", "-loglevel", "error"};
+        if (protocol == "rtsp")
+          command.insert(command.end(), {"-rtsp_transport", "tcp"});
+        std::string url;
+        for (const auto& endpoint : playback["endpoints"])
+          if (endpoint["protocol"] == protocol)
+            url = endpoint["url"].asString();
+        Check(!url.empty(), "managed HTTP playback endpoint");
+        command.insert(command.end(), {"-re", "-i", url, "-t", "8", "-progress",
+                                       "pipe:1", "-f", "null", "-"});
+        const auto progress_path = directory / ("idle-" + protocol + ".log");
+        reader = std::make_unique<gb28181::test::ChildProcess>(
+            command, progress_path.string());
+        Until(
+            [&] {
+              std::ifstream progress(progress_path);
+              for (std::string line; std::getline(progress, line);) {
+                if (line.find("progress=continue") == 0)
+                  return true;
+              }
+              return false;
+            },
+            "managed " + protocol + " reader starts decoding");
+      }
+      timeout["idle_timeout_seconds"] = 2;
+      Check(http.Request(drogon::Post, address_path,
+                         timeout)["data"]["idle_timeout_seconds"] == 2,
+            "HTTP playback address accepts custom idle timeout");
+      http.Request(drogon::Delete,
+                   "/api/playback-leases/" + lease["id"].asString());
+      if (reader) {
+        std::this_thread::sleep_for(3s);
+        Check(http.Request(drogon::Get, path)["data"]["state"] == "playing",
+              "actual " + protocol + " reader keeps playback without leases");
+        Check(reader->Wait(12s) == 0, protocol + " reader decodes");
+      }
+      Check(http.Request(drogon::Get, path)["data"]["state"] == "playing",
+            "managed playback retains the idle grace period");
+      Until(
+          [&] {
+            return http.Request(drogon::Get, path)["data"]["state"] == "ended";
+          },
+          "managed playback ends after no readers for its idle timeout");
+      Check(http.Request(drogon::Get,
+                         "/api/health")["data"]["active_receivers"] == 0,
+            "idle playback releases the RTP receiver");
+    }
+  }
   if (!independent) {
     device.reset();
     Until(
@@ -448,8 +530,7 @@ void Test(const std::string& transport,
                  "online";
         },
         "HTTP registration recovery");
-    Json::Value rejected_start;
-    rejected_start["resource_id"] = resource_id;
+    const auto& rejected_start = start;
     const auto rejected = http.Request(drogon::Post, "/api/playbacks",
                                        rejected_start, 202)["data"];
     Json::Value failed;
@@ -530,7 +611,7 @@ void Test(const std::string& transport,
 
 int main() {
   try {
-    trantor::Logger::setLogLevel(trantor::Logger::kWarn);
+    trantor::Logger::setLogLevel(trantor::Logger::kInfo);
     const std::filesystem::path directory = Environment("TEST_TMPDIR");
     Test("udp", directory);
     Test("tcp", directory);

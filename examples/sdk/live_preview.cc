@@ -83,7 +83,11 @@ int main(int argc, char** argv) {
     if (resources.empty())
       throw std::runtime_error("empty catalog");
     auto lease = Wait<PlaybackLease>([&](auto done) {
-      return client->StartLive({resources[0].id, mode}, done);
+      StartLiveRequest request;
+      request.platform_id = resources[0].platform_id;
+      request.channel_gb_id = resources[0].gb_id;
+      request.mode = mode;
+      return client->StartLive(std::move(request), done);
     });
     auto playback = Wait<Playback>([&](auto done) {
       return client->WaitPlaybackReady(lease.playback_id, done);

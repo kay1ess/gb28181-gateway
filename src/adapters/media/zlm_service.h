@@ -7,6 +7,10 @@
 namespace gb28181::media {
 struct ZlmState;
 
+// Terminal process-wide shutdown. Call after all clients have stopped and
+// before unloading the SDK shared library.
+Result<void> ShutdownZlmEnvironment();
+
 // The upstream C SDK has process-global options/listeners. Exactly one active
 // instance is supported per process; a second Start returns kInvalidState.
 class ZlmMediaService final : public IMediaService {
@@ -22,6 +26,7 @@ class ZlmMediaService final : public IMediaService {
                                uint16_t port) override;
   Result<void> CloseReceiver(const ReceiverId& id) override;
   Result<Receiver> GetReceiver(const ReceiverId& id) override;
+  Result<uint32_t> GetReaderCount(const ReceiverId& id) override;
   uint32_t ReceiverCount() const override;
 
  private:

@@ -1,12 +1,49 @@
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <thread>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 #include <drogon/drogon.h>
 
 #include "apps/server/http/server.h"
 #include "gb28181/client.h"
+
+namespace {
+// Ctrl+C runs on a Windows console thread. Quit the HTTP loop there, and force
+// the process out if joining media or SIP threads does not return.
+void RequestShutdown() {
+  static std::atomic<bool> stopping{false};
+  if (stopping.exchange(true))
+    return;
+  std::thread([] {
+    drogon::app().quit();
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::_Exit(0);
+  }).detach();
+}
+
+#ifdef _WIN32
+BOOL WINAPI OnConsoleCtrl(DWORD type) {
+  if (type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT ||
+      type == CTRL_CLOSE_EVENT || type == CTRL_SHUTDOWN_EVENT) {
+    RequestShutdown();
+    return TRUE;
+  }
+  return FALSE;
+}
+#endif
+}  // namespace
 
 int main(int argc, char** argv) {
   if (argc != 2) {
@@ -58,12 +95,21 @@ int main(int argc, char** argv) {
     if (!started)
       throw std::runtime_error(started.error().message);
     gb28181::http::RegisterRoutes(client, token);
-    drogon::app()
-        .setLogLevel(trantor::Logger::kWarn)
-        .setThreadNum(2)
-        .setClientMaxBodySize(1024 * 1024)
-        .addListener(config.bind_address, http_port)
-        .run();
+    auto& app = drogon::app()
+                    .setLogLevel(trantor::Logger::kInfo)
+                    .setThreadNum(2)
+                    .setClientMaxBodySize(1024 * 1024)
+                    .addListener(config.bind_address, http_port);
+#ifdef _WIN32
+    // Drogon's SIGINT handler logs and then shuts down on the console thread.
+    // That write can stall a terminal that has stopped reading after Ctrl+C.
+    app.disableSigtermHandling();
+    SetConsoleCtrlHandler(OnConsoleCtrl, TRUE);
+#endif
+    std::cout << "Listening on http://" << config.bind_address << ':'
+              << http_port << " (Ctrl+C to stop)" << std::endl;
+    app.run();
+    std::cout << "Stopping" << std::endl;
     return client->Stop().ok() ? 0 : 1;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

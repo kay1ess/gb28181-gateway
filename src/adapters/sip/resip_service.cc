@@ -93,7 +93,7 @@ class SipTrace final : public resip::Transport::SipMessageLoggingHandler {
         else
           text << " xml_error=" << xml.error().message;
       }
-      std::clog << text.str() << '\n';
+      std::cout << text.str() << '\n';
     } catch (...) {
     }
   }
@@ -142,7 +142,7 @@ class ResipService::Impl : public resip::ServerRegistrationHandler,
     for (auto it = sessions_.begin(); it != sessions_.end(); ++it) {
       if (it->second.dialog != dialog)
         continue;
-      std::clog << "SIP dialog destroyed before termination notification: "
+      std::cout << "SIP dialog destroyed before termination notification: "
                 << it->second.id << '\n';
       SipEvent event;
       event.type = SipEventType::kSessionEnded;
@@ -227,9 +227,9 @@ class ResipService::Impl : public resip::ServerRegistrationHandler,
       peers_.clear();
       for (const auto& platform : platforms)
         platforms_[platform.id] = platform;
-      // Upstream informational auth logs include HA1 material. Keep those
-      // disabled by default; diagnostics must be explicitly redacted.
-      resip::Log::setLevel(resip::Log::Warning);
+      // Info includes resiprocate auth lines. Full SIP messages stay behind
+      // GB_SIP_TRACE=1.
+      resip::Log::initialize(resip::Log::Cout, resip::Log::Info, "gb28181");
       stack_ = std::make_unique<resip::SipStack>();
       const char* trace = std::getenv("GB_SIP_TRACE");
       if (trace && std::string(trace) == "1")
@@ -670,7 +670,7 @@ class ResipService::Impl : public resip::ServerRegistrationHandler,
                     resip::InviteSessionHandler::TerminatedReason reason,
                     const resip::SipMessage* related) override {
     if (reason == resip::InviteSessionHandler::Error) {
-      std::clog << "SIP session terminated: reason=" << static_cast<int>(reason)
+      std::cout << "SIP session terminated: reason=" << static_cast<int>(reason)
                 << " status="
                 << (related && related->isResponse()
                         ? related->header(resip::h_StatusLine).statusCode()

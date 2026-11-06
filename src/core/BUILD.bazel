@@ -16,3 +16,18 @@ cc_library(
         "//tests:__subpackages__",
     ],
 )
+
+cc_library(
+    name = "sdk_json",
+    srcs = ["sdk_json.cc"],
+    hdrs = ["sdk_json.h"],
+    visibility = [
+        "//apps/server:__pkg__",
+        "//src/runtime:__pkg__",
+    ],
+    deps = [
+        ":core",
+        "//:api",
+        "//third_party:jsoncpp",
+    ],
+)
