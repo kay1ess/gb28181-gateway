@@ -6,7 +6,11 @@
 
 ## 编译
 
-已验证 Windows x64、VS 2022 / MSVC 19.42、C++17。需要 Windows SDK、Git Bash、CMake、Ninja，以及 `.bazelversion` 中的 Bazel 9.3.2rc3。首次构建需要网络下载依赖。
+构建要求 **Bazel 9，最低版本为 9.0.0**（`>=9.0.0`、`<10.0.0`）。使用本机安装的 Bazel，通过 `MODULE.bazel`（Bzlmod）管理依赖。
+
+使用 Bazelisk 时，可将环境变量 `USE_BAZEL_VERSION` 设为 `9.x`，自动选择 Bazel 9 系列的最新正式版。
+
+已验证 Windows x64、VS 2022 / MSVC 19.42、C++17。需要 Windows SDK、Git Bash、CMake 和 Ninja。首次构建需要网络下载依赖。
 
 ```powershell
 bazel build --config=windows //apps/server:gateway

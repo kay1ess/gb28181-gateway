@@ -215,7 +215,7 @@
   "moduleExtensions": {
     "//third_party:workspace.bzl%deps": {
       "general": {
-        "bzlTransitiveDigest": "YpQOtwjxxBORoLEOzKeqrAkaD1lzIYzIAjusr88pick=",
+        "bzlTransitiveDigest": "fp/Dzk9Qer10qBorDKY4ZRFX/GAwEhb+X+ayZVgRZRY=",
         "usagesDigest": "03kRCXvWrzKssCZvV7ZWWPWVgsaPYp5hegP3W99kSSg=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_tools bazel_tools"

@@ -1,6 +1,7 @@
 module(
     name = "gb28181_gateway",
     version = "0.1.0",
+    bazel_compatibility = [">=9.0.0"],
 )
 
 bazel_dep(name = "rules_cc", version = "0.2.18")

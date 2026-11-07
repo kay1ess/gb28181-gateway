@@ -9,6 +9,8 @@ load("//third_party/zlib:workspace.bzl", "register_zlib")
 load("//third_party/zlmediakit:workspace.bzl", "register_zlmediakit")
 
 def _dependencies_impl(_ctx):
+    if native.bazel_version.split(".")[0] != "9":
+        fail("GB28181 Gateway requires Bazel 9 (>=9.0.0, <10.0.0); current version: " + native.bazel_version)
     register_drogon()
     register_jsoncpp()
     register_resiprocate()

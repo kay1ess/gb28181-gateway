@@ -1,6 +1,7 @@
 GB28181 Gateway third-party dependencies
 
 Layout and build
+  Builds require Bazel 9 (>=9.0.0, <10.0.0).
   workspace.bzl registers the dependency list. MODULE.bazel imports its
   Bzlmod extension.
   <library>/workspace.bzl declares the download URLs, SHA-256 checksums,

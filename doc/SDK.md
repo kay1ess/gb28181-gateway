@@ -4,6 +4,8 @@
 
 ## 构建
 
+需要 Bazel 9，最低版本为 9.0.0，环境要求见 [README](../README.md#编译)。
+
 ```text
 bazel build //:sdk_c_shared
 ```
