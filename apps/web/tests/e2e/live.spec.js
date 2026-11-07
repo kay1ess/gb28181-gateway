@@ -43,7 +43,7 @@ test('real C++ server + independent Go cascade: register, catalog, two leases an
     return process;
   };
   const server = child(
-    process.env.GB_SERVER || resolve(root, 'bazel-bin/apps/server/server.exe'),
+    process.env.GB_SERVER || resolve(root, 'bazel-bin/apps/server/gateway.exe'),
     [configPath],
     'server',
   );

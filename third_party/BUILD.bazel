@@ -8,6 +8,11 @@ config_setting(
 )
 
 config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:macos"],
+)
+
+config_setting(
     name = "linux_arm64",
     constraint_values = [
         "@platforms//os:linux",

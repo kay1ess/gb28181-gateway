@@ -1,6 +1,6 @@
-# GB28181 Proxy Tool
+# GB28181 Gateway
 
-基于 C++17 和 Bazel 的 GB/T 28181 代理，用于接入下级、同步目录并发起拉流。以下命令均在项目根目录执行。
+基于 C++17 和 Bazel 的 GB/T 28181 接入网关，提供下级接入、目录聚合和按需拉流能力，支持 HTTP、WebSocket 与 C SDK。以下命令均在项目根目录执行。
 
 接口见 [HTTP API](doc/API.md)、[SDK](doc/SDK.md)。
 
@@ -9,16 +9,26 @@
 已验证 Windows x64、VS 2022 / MSVC 19.42、C++17。需要 Windows SDK、Git Bash、CMake、Ninja，以及 `.bazelversion` 中的 Bazel 9.3.2rc3。首次构建需要网络下载依赖。
 
 ```powershell
-bazel build --config=windows //apps/server:server
+bazel build --config=windows //apps/server:gateway
 ```
 
 Linux x64：
 
 ```sh
-bazel build --config=linux //apps/server:server
+bazel build --config=linux //apps/server:gateway
 ```
 
-不传 `--config` 时按当前系统自动选择。编译结果为 `bazel-bin/apps/server/server.exe`（Linux 为 `server`）。运行时保留旁边的 `mk_api.dll` 或 `libmk_api.so`。
+macOS 原生编译使用 Apple Clang、macOS SDK、CMake 和 Ninja。Apple Silicon Mac 执行：
+
+```sh
+xcrun --sdk macosx --show-sdk-path
+bazel build --config=macos_arm64 //apps/server:gateway //:sdk_c_shared
+bazel test --config=macos_arm64 //tests:storage_test //tests:sdk_test //tests:c_api_test
+```
+
+Intel Mac 把 `macos_arm64` 换成 `macos_x64`。
+
+不传 `--config` 时使用当前系统的默认配置。编译结果为 `bazel-bin/apps/server/gateway.exe`（Linux 和 macOS 为 `gateway`）。运行时保留同次构建的 ZLMediaKit 动态库，Windows 为 `mk_api.dll`，Linux 为 `libmk_api.so`，macOS 为 `libmk_api.dylib`。
 
 ## 配置
 
@@ -51,7 +61,7 @@ Copy-Item -LiteralPath configs/server.example.json -Destination configs/server.l
 ## 启动
 
 ```powershell
-./bazel-bin/apps/server/server.exe ./configs/server.local.json
+./bazel-bin/apps/server/gateway.exe ./configs/server.local.json
 ```
 
 在项目根目录启动，这样 `database_path` 等相对路径才指向项目内的文件。`bazel run` 的工作目录不是项目根，相对配置路径会报 `Invalid configuration file`。

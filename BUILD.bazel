@@ -44,9 +44,17 @@ cc_binary(
     deps = [":sdk_c"],
 )
 
+cc_binary(
+    name = "libgb28181_c_sdk.dylib",
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = [":sdk_c"],
+)
+
 alias(
     name = "sdk_c_shared",
     actual = select({
+        "//third_party:macos": ":libgb28181_c_sdk.dylib",
         "//third_party:windows": ":gb28181_c_sdk.dll",
         "//conditions:default": ":libgb28181_c_sdk.so",
     }),

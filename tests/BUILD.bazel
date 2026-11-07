@@ -220,7 +220,7 @@ cc_test(
     name = "http_integration_test",
     timeout = "moderate",
     srcs = ["http_integration_test.cc"],
-    data = ["//apps/server"],
+    data = ["//apps/server:gateway"],
     tags = [
         "integration",
         "manual",
@@ -236,7 +236,7 @@ cc_test(
     name = "http_third_party_test",
     timeout = "moderate",
     srcs = ["http_integration_test.cc"],
-    data = ["//apps/server"],
+    data = ["//apps/server:gateway"],
     env = {"GB_PEER_KIND": "mickey"},
     tags = [
         "integration",

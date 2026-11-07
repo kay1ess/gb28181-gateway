@@ -47,7 +47,7 @@ BOOL WINAPI OnConsoleCtrl(DWORD type) {
 
 int main(int argc, char** argv) {
   if (argc != 2) {
-    std::cerr << "Usage: server <configuration.json>\n";
+    std::cerr << "Usage: gateway <configuration.json>\n";
     return 2;
   }
   std::shared_ptr<gb28181::Client> client = gb28181::CreateClient();

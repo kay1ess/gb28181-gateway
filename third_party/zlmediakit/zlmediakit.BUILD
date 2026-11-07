@@ -34,6 +34,7 @@ cmake(
         "//conditions:default": [],
     }),
     out_shared_libs = select({
+        "@//third_party:macos": ["libmk_api.dylib"],
         "@//third_party:windows": ["mk_api.dll"],
         "//conditions:default": ["libmk_api.so"],
     }),

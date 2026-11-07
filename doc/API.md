@@ -1,4 +1,4 @@
-# GB28181 HTTP API
+# GB28181 Gateway HTTP API
 
 默认 `http://127.0.0.1:8080`。业务接口带 `Authorization: Bearer <api_token>`。JSON 请求体的接口使用 `Content-Type: application/json`。可选请求头 `X-Request-ID` 最多 64 个字母、数字、下划线或连字符；省略时由服务端生成，并在响应头和 `trace_id` 中返回。
 

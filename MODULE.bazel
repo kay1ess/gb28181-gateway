@@ -1,5 +1,5 @@
 module(
-    name = "gb28181_server",
+    name = "gb28181_gateway",
     version = "0.1.0",
 )
 

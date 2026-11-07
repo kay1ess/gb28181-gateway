@@ -39,6 +39,7 @@ cmake(
     generate_args = ["-GNinja"],
     lib_source = ":sources",
     linkopts = select({
+        "@//third_party:macos": [],
         "@//third_party:windows": [
             "ws2_32.lib",
             "crypt32.lib",

@@ -1,4 +1,4 @@
-# GB28181 C SDK
+# GB28181 Gateway C SDK
 
 头文件为 [gb28181/c_api.h](../include/gb28181/c_api.h)。接口使用 C ABI、固定宽度整数、UTF-8 字符串和不透明句柄。异步回调返回 JSON，方便 C、Rust、Go、Python 和 .NET 通过同一套接口接入。调用方可用 `gb28181_abi_version()` 检查 ABI 版本，当前为 1。
 
@@ -8,7 +8,7 @@
 bazel build //:sdk_c_shared
 ```
 
-Windows 产物为 `bazel-bin/gb28181_c_sdk.dll`，Linux 为 `bazel-bin/libgb28181_c_sdk.so`。部署时让系统加载器能找到同次构建的 ZLMediaKit 动态库。使用 Bazel 编写原生调用方时，可直接依赖 `//:sdk_c`。
+Windows 产物为 `bazel-bin/gb28181_c_sdk.dll`，Linux 为 `bazel-bin/libgb28181_c_sdk.so`，macOS 为 `bazel-bin/libgb28181_c_sdk.dylib`。部署时让系统加载器能找到同次构建的 ZLMediaKit 动态库。使用 Bazel 编写原生调用方时，可直接依赖 `//:sdk_c`。
 
 ## 调用方式
 

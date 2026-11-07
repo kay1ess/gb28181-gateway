@@ -176,7 +176,7 @@ function closeSync() {
       </div>
       <div v-if="notice" class="toast" role="status">{{ notice }}</div>
       <div v-if="!connected" class="empty panel">
-        <h2>连接上级平台</h2>
+        <h2>连接网关</h2>
         <button @click="connectionOpen = true">设置连接</button>
       </div>
       <template v-else>
@@ -459,7 +459,7 @@ function closeSync() {
       >
         <div class="modal-header">
           <div>
-            <h2 id="connection-title">连接上级平台</h2>
+            <h2 id="connection-title">连接网关</h2>
           </div>
           <button v-if="connected" aria-label="关闭连接设置" @click="connectionOpen = false">
             ×

@@ -1,4 +1,4 @@
-GB28181 server third-party dependencies
+GB28181 Gateway third-party dependencies
 
 Layout and build
   workspace.bzl registers the dependency list. MODULE.bazel imports its
@@ -12,7 +12,7 @@ Layout and build
   //third_party:resiprocate, and //third_party:zlmediakit.
   //third_party:all_deps groups Drogon, reSIProcate, and ZLMediaKit.
 
-  bazel build //apps/server:server
+  bazel build //apps/server:gateway
   bazel build //third_party:all_deps
   bazel run //third_party/bazel:smoke
 

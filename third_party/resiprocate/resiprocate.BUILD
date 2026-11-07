@@ -42,6 +42,12 @@ cmake(
     generate_args = ["-GNinja"],
     lib_source = ":sources",
     linkopts = select({
+        "@//third_party:macos": [
+            "-Wl,-framework,CoreFoundation",
+            "-Wl,-framework,CoreServices",
+            "-Wl,-framework,Security",
+            "-Wl,-framework,SystemConfiguration",
+        ],
         "@//third_party:windows": [
             "ws2_32.lib",
             "iphlpapi.lib",

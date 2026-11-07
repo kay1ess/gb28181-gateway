@@ -1,5 +1,5 @@
 {
-  "name": "gb28181-console",
+  "name": "gb28181-gateway-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",

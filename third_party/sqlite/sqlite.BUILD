@@ -10,6 +10,7 @@ cc_library(
     defines = ["SQLITE_THREADSAFE=1"],
     includes = ["."],
     linkopts = select({
+        "@//third_party:macos": [],
         "@//third_party:windows": [],
         "//conditions:default": [
             "-pthread",

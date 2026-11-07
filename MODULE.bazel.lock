@@ -216,7 +216,7 @@
     "//third_party:workspace.bzl%deps": {
       "general": {
         "bzlTransitiveDigest": "YpQOtwjxxBORoLEOzKeqrAkaD1lzIYzIAjusr88pick=",
-        "usagesDigest": "KCz1e6INJSBcFetEqiGqihI59DftJTBYvFgj0Iih+OU=",
+        "usagesDigest": "03kRCXvWrzKssCZvV7ZWWPWVgsaPYp5hegP3W99kSSg=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_tools bazel_tools"
         ],

@@ -27,7 +27,7 @@ cc_library(
 )
 
 cc_binary(
-    name = "server",
+    name = "gateway",
     srcs = ["main.cc"],
     visibility = ["//tests:__pkg__"],
     deps = [

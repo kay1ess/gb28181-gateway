@@ -1,4 +1,4 @@
-# Vue 上级平台演示页
+# GB28181 Gateway 演示页
 
 Vue 3 + Vite 单页演示，独立于 C++ SDK 和 HTTP 服务。主界面只有下级与资源树，添加、编辑、目录同步、设备详情和视频预览使用弹窗。已接入用户指定的 smsplayer Vue 3 播放器，点播后自动通过 HTTP-FLV 播放，保留 RTSP 地址供其他客户端使用。
 
@@ -6,17 +6,16 @@ Vue 3 + Vite 单页演示，独立于 C++ SDK 和 HTTP 服务。主界面只有�
 
 需要 Node.js 22.12+；当前验证环境为 Node.js 22.17.0。
 
-先在项目根目录启动当前源码编译的上级服务：
+先在项目根目录启动网关：
 
 ```powershell
-cd D:\likai\gb28181-server
-.\bazel-bin\apps\server\server.exe .\configs\server.example.json
+.\bazel-bin\apps\server\gateway.exe .\configs\server.example.json
 ```
 
 另开终端启动前端：
 
 ```powershell
-cd D:\likai\gb28181-server\apps\web
+cd apps/web
 npm ci
 npm run dev
 ```
@@ -146,7 +145,7 @@ npm run test:e2e
 
 该测试自动创建独立数据库并启动 C++ 服务和 Go cascade 下级，通过页面添加平台、注册、同步目录、双路点播；两个浏览器视频元素都必须出现真实解码帧并推进播放时间，外部 FFmpeg 另对两个 RTSP 地址各解码一帧。逐路释放后检查另一路仍在播放，最后检查播放、媒体、租约和 SIP 计数归零。测试使用 HTTP 32180、媒体 HTTP 32181、SIP 32160、RTP 32100/32101，需保持空闲，不改动现有服务和数据库。
 
-默认查找根目录的 `bazel-bin/apps/server/server.exe`、`.bazel-output/tools/gb28181-go-device.exe`、`.bazel-output/tools/sample.h264` 和 `C:/Program Files/ffmpeg/ffmpeg.exe`。可用 `GB_SERVER`、`GB_SIMULATOR`、`GB_SAMPLE`、`GB_FFMPEG` 覆盖路径。测试日志、截图和失败追踪位于 `test-results`。在受限 Windows 环境中，测试需要能管理自身创建的服务子进程，以正常关闭测试环境。
+默认查找根目录的 `bazel-bin/apps/server/gateway.exe`、`.bazel-output/tools/gb28181-go-device.exe`、`.bazel-output/tools/sample.h264` 和 `C:/Program Files/ffmpeg/ffmpeg.exe`。可用 `GB_SERVER`、`GB_SIMULATOR`、`GB_SAMPLE`、`GB_FFMPEG` 覆盖路径。测试日志、截图和失败追踪位于 `test-results`。在受限 Windows 环境中，测试需要能管理自身创建的服务子进程，以正常关闭测试环境。
 
 ## 本次验证结果
 
