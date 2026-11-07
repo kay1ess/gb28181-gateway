@@ -25,7 +25,6 @@ index b85e983..c46cd4d 100644
  #ifdef __cplusplus
  }
 -#endif
-\ No newline at end of file
 +#endif
 diff --git a/src/Rtp/RtpProcess.cpp b/src/Rtp/RtpProcess.cpp
 index 87dfcee..d1980ae 100644
@@ -76,7 +75,6 @@ index 87dfcee..d1980ae 100644
  
  }//namespace mediakit
 -#endif//defined(ENABLE_RTPPROXY)
-\ No newline at end of file
 +#endif//defined(ENABLE_RTPPROXY)
 diff --git a/src/Rtp/RtpProcess.h b/src/Rtp/RtpProcess.h
 index 46a3a4b..0420c97 100644

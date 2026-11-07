@@ -79,10 +79,3 @@ index c9a19ed..621146d 100644
  }
  
  API_EXPORT void API_CALL mk_rtp_server_connect(mk_rtp_server ctx, const char *dst_url, uint16_t dst_port, on_mk_rtp_server_connected cb, void *user_data) {
-@@ -139,4 +151,4 @@ API_EXPORT void API_CALL mk_rtp_server_set_on_detach(mk_rtp_server ctx, on_mk_rt
-     WarnL << "请打开ENABLE_RTPPROXY后再编译";
- }
- 
--#endif
-\ No newline at end of file
-+#endif
