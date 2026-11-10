@@ -1,8 +1,109 @@
 # GB28181 Gateway
 
-基于 C++17 和 Bazel 的 GB/T 28181 接入网关，提供下级接入、目录聚合和按需拉流能力，支持 HTTP、WebSocket 与 C SDK。以下命令均在项目根目录执行。
+[English](README_en.md)
 
-接口见 [HTTP API](doc/API.md)、[SDK](doc/SDK.md)。
+基于 C++17 和 Bazel 的 GB/T 28181 接入网关。它接入下级平台，汇聚目录，并按需把实时视频转成 RTSP 和 HTTP-FLV，通过 HTTP、WebSocket 和 C / C++ SDK 交给现有系统。
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg)](.bazelrc)
+[![Bazel 9](https://img.shields.io/badge/Bazel-9.x-43a047.svg)](MODULE.bazel)
+[![Windows x64 | Linux x64 | macOS](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20macOS-lightgrey.svg)](#编译)
+
+文档：[HTTP API](doc/API.md) · [C / C++ SDK](doc/SDK.md) · [演示页](apps/web/README.md)
+
+<!--
+作者补图：把演示页截图或短 GIF 放到 doc/images/ 后，删掉本注释和下面的占位说明，改成真实图片，例如：
+![演示页：资源树与 HTTP-FLV 预览](doc/images/console.png)
+图片文件进入仓库之前不要写这一行，避免坏链。
+-->
+
+> **截图 / 演示 GIF 尚未放入仓库。** 建议补一张演示页（下级与资源树、HTTP-FLV 预览），或一段从注册、同步目录到出画的短 GIF。文件放到 `doc/images/` 后再替换这段说明。
+
+## 核心特性
+
+下列能力都能在当前代码里找到，信令实现的是 GB/T 28181 的一个子集。
+
+- **下级接入。** SIP 同时监听 UDP 和 TCP。下级用摘要认证注册，心跳超时后标为离线。多个下级的编码、密码和默认收流方式写入 SQLite。
+- **目录汇聚。** 向下级查询 `Catalog`，分批累计后按平台写入目录。进度通过 WebSocket 的 `operation_changed` 推送，条目用 `/api/resources` 分页查询。
+- **设备信息与状态。** `DeviceInfo` 和 `DeviceStatus` 先读本地缓存，也可以向下级重新查询。
+- **按需实时点播。** `INVITE` 协商 PS（payload 96）。收流支持 UDP、TCP 被动和 TCP 主动。同一通道、同一收流方式共用一路；有 RTSP 或 HTTP-FLV 观看者时保持拉流，空闲超时后停止。按租约续期的旧接口仍然保留。
+- **播放地址。** ZLMediaKit 在固定 RTP 端口上按 SSRC 收流，返回 RTSP 和 HTTP-FLV。HTTP-FLV 使用传统 HEVC FLV（Codec ID 12），RTMP 只作为内部封装。运行时关闭 HLS 和 MP4 录像。PS 里的音频轨会保留。
+- **三种调用方式。** 业务 HTTP API 使用 Bearer 令牌；WebSocket 推送平台、目录、任务和播放变化；C++ SDK 与 C ABI 动态库供进程内或其他语言绑定使用。
+- **演示页。** [apps/web](apps/web/README.md) 是 Vue 3 单页：管理下级、看目录同步进度、查设备，并用内置播放器播放 HTTP-FLV（H.264 / H.265）。RTSP 地址留给其他客户端。
+
+云台、录像检索与回放、报警、语音对讲和向上级联尚未实现。
+
+## 架构
+
+业务层只依赖自有接口。SIP、媒体、存储和 HTTP 都是可替换的适配器。
+
+```mermaid
+flowchart LR
+  lower["下级平台 / 设备"]
+  sip["SIP 适配<br/>reSIProcate"]
+  app["应用层"]
+  db[("SQLite")]
+  media["媒体适配<br/>ZLMediaKit"]
+  api["HTTP / WebSocket<br/>Drogon"]
+  sdk["C / C++ SDK"]
+  web["演示页 apps/web"]
+  play["RTSP / HTTP-FLV"]
+
+  lower -->|"REGISTER、MESSAGE、INVITE"| sip
+  sip --> app
+  app --> db
+  app --> media
+  lower -->|"RTP / PS"| media
+  media --> play
+  app --> api
+  api --> web
+  web --> play
+  app --> sdk
+```
+
+## 快速开始
+
+以下命令在项目根目录执行。需要 **Bazel 9**（`>=9.0.0`、`<10.0.0`）。首次构建要能下载依赖。完整的系统依赖、macOS 目标和配置表见下文。
+
+Windows x64：
+
+```powershell
+bazel build --config=windows //apps/server:gateway
+Copy-Item -LiteralPath configs/server.example.json -Destination configs/server.local.json
+./bazel-bin/apps/server/gateway.exe ./configs/server.local.json
+```
+
+Linux x64：
+
+```sh
+bazel build --config=linux //apps/server:gateway
+cp configs/server.example.json configs/server.local.json
+./bazel-bin/apps/server/gateway ./configs/server.local.json
+```
+
+macOS 把 `--config` 换成 `macos_arm64` 或 `macos_x64`，可执行文件名是 `gateway`。
+
+启动前改 `configs/server.local.json` 里的 `api_token`。示例值 `replace-this-test-token` 只适合本机测试。局域网接入时把 `advertised_address` 改成这台机器的实际 IPv4。终端出现 `Listening on http://...` 后，服务已在监听，Ctrl+C 结束。
+
+演示页另开一个终端：
+
+```powershell
+cd apps/web
+npm ci
+npm run dev
+```
+
+打开 `http://127.0.0.1:5173`，填入同一个 `api_token`。演示页需要 Node.js 22.12 及以上。
+
+## 适用场景
+
+- 已有业务系统要接国标下级，通过 HTTP 或 C SDK 读取目录并发起点播。
+- 本机或局域网预览实时画面：浏览器走演示页的 HTTP-FLV，其他播放器走 RTSP。
+- 把接入能力嵌进现有 C / C++ 进程。动态库目标是 `//:sdk_c_shared`，示例在 [examples/sdk](examples/sdk)。
+
+## 和完整国标平台的差别
+
+[WVP-PRO](https://github.com/648540858/wvp-GB28181-pro) 的自述是开箱即用的国标视频平台：Java 实现，自带管理后台，并包含级联、云台、录像和报警等平台能力。本仓库是 C++ 接入网关，当前代码覆盖下级注册与保活、目录汇聚、设备信息与状态、按需实时点播，以及 HTTP、WebSocket 和 C / C++ SDK。需要整套平台时选用平台方案；只想把国标下级嵌进已有系统时，可以从这里开始。
 
 ## 编译
 
@@ -31,6 +132,8 @@ bazel test --config=macos_arm64 //tests:storage_test //tests:sdk_test //tests:c_
 ```
 
 Intel Mac 把 `macos_arm64` 换成 `macos_x64`。
+
+另有 `--config=linux_arm64`，用于在 Linux x64 上交叉编译 Linux ARM64。文档里标明已验证的环境是 Windows x64。
 
 不传 `--config` 时使用当前系统的默认配置。编译结果为 `bazel-bin/apps/server/gateway.exe`（Linux 和 macOS 为 `gateway`）。运行时保留同次构建的 ZLMediaKit 动态库，Windows 为 `mk_api.dll`，Linux 为 `libmk_api.so`，macOS 为 `libmk_api.dylib`。
 
@@ -81,3 +184,9 @@ npm run dev
 ```
 
 打开 `http://127.0.0.1:5173`，填入配置中的 `api_token`。
+
+## 许可证
+
+本仓库自有代码采用 [MIT License](LICENSE)，版权人 kay1ess，年份 2026。
+
+第三方组件保留各自许可证。网关构建会链接 reSIProcate、Drogon、ZLMediaKit、SQLite、TinyXML2、JsonCpp 和 zlib。ZLMediaKit 在 MIT 之外还要求保留其服务标识中的 “ZLMediaKit” 字样。演示页播放器 `apps/web/vendor/smsplayer` 为 ISC，其 WASM 内含 FFmpeg，许可文本在该目录的 `licenses/`。分发二进制或演示页时请保留这些声明。
