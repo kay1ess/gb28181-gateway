@@ -12,15 +12,20 @@ build:macos --cxxopt=-std=c++17
 # std::filesystem (used by the test suite) requires macOS 10.15+; Apple Silicon
 # itself requires 11.0, so target 11.0.
 build:macos --macos_minimum_os=11.0
-# Run actions locally instead of sandboxed, so build tools installed under
-# /opt/homebrew/bin (cmake, ninja, pkg-config) are visible via the host PATH.
+# Optional local execution so Homebrew tools are visible. Do not combine this
+# with the documented macos_arm64 / macos_x64 commands on Bazel 9: local
+# execution reports Xcode SDK headers as illegal absolute includes.
+# CI leaves the sandbox on and exposes cmake/ninja through /usr/local/bin.
 build:macos --spawn_strategy=local
 build:macos --incompatible_strict_action_env=false
-# The documented macOS commands pass only macos_arm64 or macos_x64. Those
-# configs need the C++17, deployment target, and host-tool settings above.
-build:macos_arm64 --config=macos
+# C++17 and the 11.0 deployment target apply to the documented one-flag
+# commands. Do not inherit build:macos: its local spawn strategy makes
+# Bazel 9 treat Xcode SDK headers as illegal absolute includes.
+build:macos_arm64 --cxxopt=-std=c++17
+build:macos_arm64 --macos_minimum_os=11.0
 build:macos_arm64 --platforms=//build/platforms:macos_arm64
-build:macos_x64 --config=macos
+build:macos_x64 --cxxopt=-std=c++17
+build:macos_x64 --macos_minimum_os=11.0
 build:macos_x64 --platforms=//build/platforms:macos_x64
 
 # Native Linux AArch64, for an aarch64 host such as ubuntu-24.04-arm.

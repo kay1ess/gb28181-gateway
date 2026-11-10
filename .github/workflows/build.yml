@@ -123,6 +123,16 @@ jobs:
             eval "$(/usr/local/bin/brew shellenv)"
           fi
           brew install cmake ninja pkg-config autoconf automake libtool
+          # Bazel's sandboxed PATH includes /usr/local/bin. Apple Silicon
+          # Homebrew lives in /opt/homebrew, which that PATH does not.
+          if [[ -d /opt/homebrew/bin ]]; then
+            sudo mkdir -p /usr/local/bin
+            for tool in cmake ninja pkg-config autoconf automake libtool m4; do
+              if [[ -x "/opt/homebrew/bin/$tool" ]]; then
+                sudo ln -sfn "/opt/homebrew/bin/$tool" "/usr/local/bin/$tool"
+              fi
+            done
+          fi
           echo "$PATH" >> "$GITHUB_PATH"
 
       - name: Check Windows tools
@@ -166,8 +176,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ runner.os }}" == "macOS" ]]; then
-            export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
-            export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+            unset SDKROOT CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH || true
           fi
           bazel build \
             --config="${{ matrix.config }}" \
