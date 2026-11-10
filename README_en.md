@@ -96,9 +96,3 @@ Open `http://127.0.0.1:5173` and enter the same `api_token`.
 ## Compared with a full platform
 
 [WVP-PRO](https://github.com/648540858/wvp-GB28181-pro) describes itself as a ready-to-run GB28181 video platform: Java, an admin UI, plus cascade, PTZ, recording, and alarms. This repository is a C++ access gateway. The code covers lower-platform registration and keepalive, catalog aggregation, device info and status, on-demand live video, and HTTP, WebSocket, and C / C++ SDKs. Use a full platform when you need that product. Start here when you want the access layer inside a system you already have.
-
-## License
-
-Original code in this repository is under the [MIT License](LICENSE), copyright kay1ess, 2026.
-
-Third-party components keep their own licenses. The gateway build links reSIProcate, Drogon, ZLMediaKit, SQLite, TinyXML2, JsonCpp, and zlib. ZLMediaKit adds a requirement to keep the “ZLMediaKit” token in its service identifiers. The demo player in `apps/web/vendor/smsplayer` is ISC, and its WASM contains FFmpeg; see `licenses/` in that directory. Keep those notices when you ship a binary or the demo page.

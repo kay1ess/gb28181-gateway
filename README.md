@@ -176,9 +176,3 @@ npm run dev
 ```
 
 打开 `http://127.0.0.1:5173`，填入配置中的 `api_token`。
-
-## 许可证
-
-本仓库自有代码采用 [MIT License](LICENSE)，版权人 kay1ess，年份 2026。
-
-第三方组件保留各自许可证。网关构建会链接 reSIProcate、Drogon、ZLMediaKit、SQLite、TinyXML2、JsonCpp 和 zlib。ZLMediaKit 在 MIT 之外还要求保留其服务标识中的 “ZLMediaKit” 字样。演示页播放器 `apps/web/vendor/smsplayer` 为 ISC，其 WASM 内含 FFmpeg，许可文本在该目录的 `licenses/`。分发二进制或演示页时请保留这些声明。
