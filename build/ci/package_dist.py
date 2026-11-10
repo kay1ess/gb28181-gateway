@@ -281,6 +281,10 @@ def find_with_prefix(bazel_bin, prefix):
 def copy_file(src, dest):
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest, follow_symlinks=True)
+    # Bazel outputs are often mode 0555. patchelf and install_name_tool need
+    # to rewrite the copy.
+    mode = dest.stat().st_mode
+    dest.chmod(mode | stat.S_IRUSR | stat.S_IWUSR)
     return dest
 
 

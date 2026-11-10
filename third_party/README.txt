@@ -33,6 +33,9 @@ The first build requires access to the Bazel registry and the archive hosts.
 
 Patches
   JsonCpp's CMake patch honors a caller-specified C++ standard.
+  Trantor's SHA-1 endian probe recognizes arm64 and i386, not x86_64.
+  The Drogon patch marks __x86_64__ and __amd64__ as little endian so
+  macOS x64 can compile trantor.
   ZLMediaKit's CMake patch redirects build outputs to the binary directory
   and skips standalone-server assets. Lifecycle and ZLToolKit patches handle
   RTP startup rollback and worker shutdown on Windows. The shared RTP
