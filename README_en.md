@@ -11,15 +11,6 @@ A C++17 / Bazel gateway for GB/T 28181. It accepts lower platforms, stores their
 
 Docs: [HTTP API](doc/API.md) · [C / C++ SDK](doc/SDK.md) · [Web demo](apps/web/README.md)
 
-<!--
-Screenshot / demo GIF: add the file under doc/images/, then replace the note
-below with a real image link, for example:
-![Console: resource tree and HTTP-FLV preview](doc/images/console.png)
-Do not add that link before the file exists.
--->
-
-> **Screenshot / demo GIF is not in the repository yet.** A console capture (platform tree and HTTP-FLV preview), or a short GIF from registration through the first picture, can replace this note. Put the file in `doc/images/`.
-
 ## Features
 
 These are implemented in the tree today. The SIP surface is a subset of GB/T 28181.
