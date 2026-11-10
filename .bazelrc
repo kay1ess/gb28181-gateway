@@ -16,10 +16,22 @@ build:macos --macos_minimum_os=11.0
 # /opt/homebrew/bin (cmake, ninja, pkg-config) are visible via the host PATH.
 build:macos --spawn_strategy=local
 build:macos --incompatible_strict_action_env=false
+# The documented macOS commands pass only macos_arm64 or macos_x64. Those
+# configs need the C++17, deployment target, and host-tool settings above.
+build:macos_arm64 --config=macos
 build:macos_arm64 --platforms=//build/platforms:macos_arm64
+build:macos_x64 --config=macos
 build:macos_x64 --platforms=//build/platforms:macos_x64
 
+# Native Linux AArch64, for an aarch64 host such as ubuntu-24.04-arm.
+# --config=linux pins linux_x64, so it is the wrong switch on this host.
+build:linux_aarch64 --platforms=//build/platforms:linux_arm64
+build:linux_aarch64 --cxxopt=-std=c++17
+
 # Linux x86_64 host, Linux ARM64 target (Debian GCC cross compiler).
+# gb28181_cross_aarch64 keeps the QEMU/sysroot CMake settings off native
+# aarch64 hosts, which share the linux + aarch64 constraints.
 build:linux_arm64 --platforms=//build/platforms:linux_arm64
 build:linux_arm64 --extra_toolchains=@aarch64_linux_gnu//:toolchain
 build:linux_arm64 --symlink_prefix=.bazel-output/linux-arm64-
+build:linux_arm64 --define=gb28181_cross_aarch64=1

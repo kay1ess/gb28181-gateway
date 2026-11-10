@@ -2,12 +2,15 @@
 
 **用途：集成到第三方系统中，对接国标平台，实时拉流，再把结果交给业务系统做后续处理。**
 
-本网关基于 C++17 和 Bazel。国标下级平台或设备向本网关注册后，第三方系统通过 HTTP、WebSocket 或 C / C++ SDK 读取目录、发起实时点播，并用返回的 RTSP 或 HTTP-FLV 地址继续做预览、转发或其他业务。后续业务处理在调用方，不在本网关内。
+本网关基于标准 C++17 和 Bazel，同一套代码在 Windows、Linux 和 macOS 上构建。国标下级平台或设备向本网关注册后，第三方系统通过 HTTP、WebSocket 或 C / C++ SDK 读取目录、发起实时点播，并用返回的 RTSP 或 HTTP-FLV 地址继续做预览、转发或其他业务。后续业务处理在调用方，不在本网关内。
 
+适用于信创系统接入：在国产操作系统和国产 CPU 环境里对接国标平台。实现按标准 C++17 / Bazel 设计，可移植到这些环境。麒麟、统信 UOS 等国产操作系统，以及鲲鹏、飞腾等 arm64 和海光等 x86_64 CPU，本仓库没有实测记录，也没有认证。
+
+[![Build](https://github.com/kay1ess/gb28181-gateway/actions/workflows/build.yml/badge.svg)](https://github.com/kay1ess/gb28181-gateway/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg)](.bazelrc)
 [![Bazel 9](https://img.shields.io/badge/Bazel-9.x-43a047.svg)](MODULE.bazel)
-[![Windows x64 | Linux x64 | macOS](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20macOS-lightgrey.svg)](#编译)
+[![Windows x64 | Linux x64 / arm64 | macOS](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%2F%20arm64%20%7C%20macOS-lightgrey.svg)](#安装包)
 
 文档：[HTTP API](doc/API.md) · [C / C++ SDK](doc/SDK.md) · [演示页](apps/web/README.md)
 
@@ -15,6 +18,7 @@
 
 下列能力都能在当前代码里找到，信令实现的是 GB/T 28181 的一个子集。
 
+- **跨平台。** Windows x64、Linux x64、Linux arm64、macOS arm64 和 macOS x64 用各自的 Bazel `--config` 从同一套源码构建。安装包带上同一次构建的网关、ZLMediaKit 动态库和 C SDK 共享库。
 - **下级接入。** SIP 同时监听 UDP 和 TCP。下级用摘要认证注册，心跳超时后标为离线。多个下级的编码、密码和默认收流方式写入 SQLite。
 - **目录汇聚。** 向下级查询 `Catalog`，分批累计后按平台写入目录。进度通过 WebSocket 的 `operation_changed` 推送，条目用 `/api/resources` 分页查询。
 - **设备信息与状态。** `DeviceInfo` 和 `DeviceStatus` 先读本地缓存，也可以向下级重新查询。
@@ -88,6 +92,14 @@ npm run dev
 
 打开 `http://127.0.0.1:5173`，填入同一个 `api_token`。演示页需要 Node.js 22.12 及以上。
 
+## 安装包
+
+[GitHub Actions](https://github.com/kay1ess/gb28181-gateway/actions/workflows/build.yml) 在 Windows x64、Linux x64、Linux arm64、macOS arm64 和 macOS x64 上构建，并把每个平台的压缩包上传为 artifact。推送 `v*` 标签时，同一套包会附到 [Releases](https://github.com/kay1ess/gb28181-gateway/releases)。
+
+每个包包含该次构建的网关可执行文件、ZLMediaKit 动态库（Windows `mk_api.dll`，Linux `libmk_api.so`，macOS `libmk_api.dylib`）、C SDK 共享库、`configs/server.example.json`、本仓库 `LICENSE` 和第三方许可文本。动态库和可执行文件在同一目录，不要拆开。
+
+Linux 包在 `ubuntu-24.04` 或 `ubuntu-24.04-arm` 上链接该系统的 glibc 和 libuuid。这不能说明二进制可以直接在麒麟或统信 UOS 上运行；那些环境要用源码和 Bazel 重新构建。Windows 包需要系统里已有 Microsoft Visual C++ 2015–2022 运行库（x64）。
+
 ## 适用场景
 
 - **集成到第三方系统。** 这是本网关的主要用途。业务系统对接国标下级平台，读取目录，实时拉流，再用 RTSP 或 HTTP-FLV 地址做自己的后续处理。
@@ -104,7 +116,7 @@ npm run dev
 
 使用 Bazelisk 时，可将环境变量 `USE_BAZEL_VERSION` 设为 `9.x`，自动选择 Bazel 9 系列的最新正式版。
 
-已验证 Windows x64、VS 2022 / MSVC 19.42、C++17。需要 Windows SDK、Git Bash、CMake 和 Ninja。首次构建需要网络下载依赖。
+Windows x64 已在 VS 2022 / MSVC 19.42、C++17 下验证，CI 使用 GitHub 托管的 `windows-2022`。需要 Windows SDK、Git Bash、CMake 和 Ninja。首次构建需要网络下载依赖。
 
 ```powershell
 bazel build --config=windows //apps/server:gateway
@@ -124,9 +136,15 @@ bazel build --config=macos_arm64 //apps/server:gateway //:sdk_c_shared
 bazel test --config=macos_arm64 //tests:storage_test //tests:sdk_test //tests:c_api_test
 ```
 
-Intel Mac 把 `macos_arm64` 换成 `macos_x64`。
+Intel Mac 把 `macos_arm64` 换成 `macos_x64`。CI 的 Apple Silicon runner 是 `macos-15`，Intel runner 是 `macos-15-intel`。
 
-另有 `--config=linux_arm64`，用于在 Linux x64 上交叉编译 Linux ARM64。文档里标明已验证的环境是 Windows x64。
+Linux arm64 原生构建（aarch64 主机，例如 GitHub 托管的 `ubuntu-24.04-arm`）：
+
+```sh
+bazel build --config=linux_aarch64 //apps/server:gateway //:sdk_c_shared
+```
+
+`--config=linux_arm64` 仍是在 Linux x64 上用 Debian 交叉工具链编译 Linux ARM64，需要本机已装好 `aarch64-linux-gnu` 编译器和 QEMU。它和上面的原生配置不是同一条命令。CI 跑的是原生配置，不跑这条交叉编译。
 
 不传 `--config` 时使用当前系统的默认配置。编译结果为 `bazel-bin/apps/server/gateway.exe`（Linux 和 macOS 为 `gateway`）。运行时保留同次构建的 ZLMediaKit 动态库，Windows 为 `mk_api.dll`，Linux 为 `libmk_api.so`，macOS 为 `libmk_api.dylib`。
 
