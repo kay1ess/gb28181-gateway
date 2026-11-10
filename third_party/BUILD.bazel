@@ -20,6 +20,18 @@ config_setting(
     ],
 )
 
+# Set only by --config=linux_arm64. Native aarch64 builds use the same CPU
+# constraints and must keep the host compiler, without QEMU or the Debian
+# cross sysroot.
+config_setting(
+    name = "linux_arm64_cross",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    define_values = {"gb28181_cross_aarch64": "1"},
+)
+
 alias(
     name = "drogon",
     actual = "@drogon_src//:drogon",

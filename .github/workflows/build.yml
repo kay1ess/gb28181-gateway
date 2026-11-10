@@ -1,0 +1,280 @@
+# Build the gateway on the hosts named in README and upload one archive per
+# platform. A v* tag also publishes those archives as a GitHub Release.
+# Bazel 9 comes from Bazelisk (USE_BAZEL_VERSION=9.x).
+name: build
+
+on:
+  pull_request:
+    paths-ignore:
+      - "README.md"
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  USE_BAZEL_VERSION: 9.x
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  package:
+    name: ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: windows-x64
+            runner: windows-2022
+            config: windows
+            archive: gb28181-gateway-windows-x64.zip
+            arch: x86_64
+            jobs: 4
+          - id: linux-x64
+            runner: ubuntu-24.04
+            config: linux
+            archive: gb28181-gateway-linux-x64.tar.gz
+            arch: x86_64
+            jobs: 4
+          - id: linux-arm64
+            runner: ubuntu-24.04-arm
+            config: linux_aarch64
+            archive: gb28181-gateway-linux-arm64.tar.gz
+            arch: aarch64
+            jobs: 4
+          - id: macos-arm64
+            runner: macos-15
+            config: macos_arm64
+            archive: gb28181-gateway-macos-arm64.tar.gz
+            arch: aarch64
+            jobs: 2
+          - id: macos-x64
+            runner: macos-15-intel
+            config: macos_x64
+            archive: gb28181-gateway-macos-x64.tar.gz
+            arch: x86_64
+            jobs: 2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Free Linux disk space
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Free macOS disk space
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf /Library/Developer/CoreSimulator || true
+          rm -rf "$HOME/Library/Developer/CoreSimulator" "$HOME/Library/Developer/Xcode/DerivedData" || true
+          df -h
+
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cmake \
+            ninja-build \
+            pkg-config \
+            uuid-dev \
+            patchelf \
+            autoconf \
+            automake \
+            libtool \
+            m4 \
+            python3 \
+            unzip \
+            zip
+
+      - name: Install macOS packages
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          export HOMEBREW_NO_INSTALL_CLEANUP=1
+          if [[ -x /opt/homebrew/bin/brew ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+          elif [[ -x /usr/local/bin/brew ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+          fi
+          brew install cmake ninja pkg-config autoconf automake libtool
+          # Bazel's sandboxed PATH includes /usr/local/bin. Apple Silicon
+          # Homebrew lives in /opt/homebrew, which that PATH does not.
+          if [[ -d /opt/homebrew/bin ]]; then
+            sudo mkdir -p /usr/local/bin
+            for tool in cmake ninja pkg-config autoconf automake libtool m4; do
+              if [[ -x "/opt/homebrew/bin/$tool" ]]; then
+                sudo ln -sfn "/opt/homebrew/bin/$tool" "/usr/local/bin/$tool"
+              fi
+            done
+          fi
+          echo "$PATH" >> "$GITHUB_PATH"
+
+      - name: Check Windows tools
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          command -v cmake
+          command -v ninja
+          command -v python
+          test -f "/c/Program Files/Git/bin/bash.exe"
+          cmake --version
+          ninja --version
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@0.19.2
+        with:
+          bazelisk-version: "1.28.1"
+          bazelisk-cache: true
+          repository-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.id }}
+          bazelrc: |
+            common --announce_rc
+            common --color=yes
+            build --verbose_failures
+            build --show_timestamps
+            build --curses=no
+
+      - name: Show toolchain
+        run: |
+          set -euo pipefail
+          echo "USE_BAZEL_VERSION=${USE_BAZEL_VERSION}"
+          bazel version
+          cmake --version
+          ninja --version
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            xcrun --sdk macosx --show-sdk-path
+          fi
+          df -h
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            unset SDKROOT CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH || true
+          fi
+          bazel build \
+            --config="${{ matrix.config }}" \
+            --jobs="${{ matrix.jobs }}" \
+            //apps/server:gateway \
+            //:sdk_c_shared
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          if command -v python3 >/dev/null 2>&1; then
+            PY=python3
+          else
+            PY=python
+          fi
+          "$PY" build/ci/package_dist.py \
+            --archive "dist/${{ matrix.archive }}" \
+            --expect-arch "${{ matrix.arch }}"
+
+      - name: Summarize package
+        run: |
+          set -euo pipefail
+          {
+            echo "### ${{ matrix.id }}"
+            echo
+            echo '```'
+            if command -v python3 >/dev/null 2>&1; then
+              PY=python3
+            else
+              PY=python
+            fi
+            "$PY" - "$PWD/dist/${{ matrix.archive }}" <<'PY'
+          import sys
+          import tarfile
+          import zipfile
+          from pathlib import Path
+          archive = Path(sys.argv[1])
+          if archive.name.endswith(".zip"):
+              with zipfile.ZipFile(archive) as handle:
+                  names = handle.namelist()
+          else:
+              with tarfile.open(archive) as handle:
+                  names = handle.getnames()
+          print(archive.name, archive.stat().st_size, "bytes")
+          print("\n".join(names))
+          PY
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: dist/${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: gb28181-gateway-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/*.zip dist/*.tar.gz)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "no release archives found" >&2
+            exit 1
+          fi
+          ls -l "${files[@]}"
+          notes="$(mktemp)"
+          cat > "$notes" <<'EOF'
+          ## 安装包
+
+          每个压缩包包含同一次构建的网关可执行文件、ZLMediaKit 动态库和 C SDK 共享库，以及 `configs/server.example.json`、LICENSE 和第三方许可文本。
+
+          动态库需要和可执行文件留在同一目录。Linux 包在 Ubuntu 24.04 上构建，链接该系统的 glibc 和 libuuid。Windows 包需要 Microsoft Visual C++ 2015–2022 运行库（x64）。
+
+          这些二进制没有在麒麟、统信 UOS 或具体国产 CPU 上测试。源码按标准 C++17 / Bazel 编写，可在目标环境重新构建。
+          EOF
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$notes"
+          fi

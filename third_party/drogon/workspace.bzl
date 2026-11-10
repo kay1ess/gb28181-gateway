@@ -17,4 +17,5 @@ def register_drogon():
         archive = _DROGON,
         submodules = {"trantor": _TRANTOR},
         build_file = Label(":drogon.BUILD"),
+        patches = [Label(":trantor-sha1-endian.patch")],
     )
