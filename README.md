@@ -18,7 +18,7 @@
 
 下列能力都能在当前代码里找到，信令实现的是 GB/T 28181 的一个子集。
 
-- **跨平台。** Windows x64、Linux x64、Linux arm64、macOS arm64 和 macOS x64 用各自的 Bazel `--config` 从同一套源码构建。安装包带上同一次构建的网关、ZLMediaKit 动态库和 C SDK 共享库。
+- **跨平台。** Windows x64、Linux x64、Linux arm64、macOS arm64 和 macOS x64 已用各自的 Bazel `--config` 在 GitHub Actions 中构建通过。安装包带上同一次构建的网关、ZLMediaKit 动态库和 C SDK 共享库。
 - **下级接入。** SIP 同时监听 UDP 和 TCP。下级用摘要认证注册，心跳超时后标为离线。多个下级的编码、密码和默认收流方式写入 SQLite。
 - **目录汇聚。** 向下级查询 `Catalog`，分批累计后按平台写入目录。进度通过 WebSocket 的 `operation_changed` 推送，条目用 `/api/resources` 分页查询。
 - **设备信息与状态。** `DeviceInfo` 和 `DeviceStatus` 先读本地缓存，也可以向下级重新查询。
@@ -94,7 +94,15 @@ npm run dev
 
 ## 安装包
 
-[GitHub Actions](https://github.com/kay1ess/gb28181-gateway/actions/workflows/build.yml) 在 Windows x64、Linux x64、Linux arm64、macOS arm64 和 macOS x64 上构建，并把每个平台的压缩包上传为 artifact。推送 `v*` 标签时，同一套包会附到 [Releases](https://github.com/kay1ess/gb28181-gateway/releases)。
+下列平台已在 [GitHub Actions](https://github.com/kay1ess/gb28181-gateway/actions/workflows/build.yml) 中构建通过，压缩包会作为 artifact 上传。推送 `v*` 标签时，同一套包会附到 [Releases](https://github.com/kay1ess/gb28181-gateway/releases)。
+
+| 平台 | Runner | 配置 |
+| --- | --- | --- |
+| Windows x64 | `windows-2022` | `--config=windows` |
+| Linux x64 | `ubuntu-24.04` | `--config=linux` |
+| Linux arm64 | `ubuntu-24.04-arm` | `--config=linux_aarch64` |
+| macOS arm64 | `macos-15` | `--config=macos_arm64` |
+| macOS x64 | `macos-15-intel` | `--config=macos_x64` |
 
 每个包包含该次构建的网关可执行文件、ZLMediaKit 动态库（Windows `mk_api.dll`，Linux `libmk_api.so`，macOS `libmk_api.dylib`）、C SDK 共享库、`configs/server.example.json`、本仓库 `LICENSE` 和第三方许可文本。动态库和可执行文件在同一目录，不要拆开。
 
