@@ -1,8 +1,8 @@
 # GB28181 Gateway
 
-[English](README_en.md)
+**用途：集成到第三方系统中，对接国标平台，实时拉流，再把结果交给业务系统做后续处理。**
 
-基于 C++17 和 Bazel 的 GB/T 28181 接入网关。它接入下级平台，汇聚目录，并按需把实时视频转成 RTSP 和 HTTP-FLV，通过 HTTP、WebSocket 和 C / C++ SDK 交给现有系统。
+本网关基于 C++17 和 Bazel。国标下级平台或设备向本网关注册后，第三方系统通过 HTTP、WebSocket 或 C / C++ SDK 读取目录、发起实时点播，并用返回的 RTSP 或 HTTP-FLV 地址继续做预览、转发或其他业务。后续业务处理在调用方，不在本网关内。
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg)](.bazelrc)
@@ -27,7 +27,7 @@
 
 ## 架构
 
-业务层只依赖自有接口。SIP、媒体、存储和 HTTP 都是可替换的适配器。
+业务层只依赖自有接口。SIP、媒体、存储和 HTTP 都是可替换的适配器。第三方业务系统通过 HTTP、WebSocket 或 SDK 取得目录和实时流地址。
 
 ```mermaid
 flowchart LR
@@ -38,19 +38,20 @@ flowchart LR
   media["媒体适配<br/>ZLMediaKit"]
   api["HTTP / WebSocket<br/>Drogon"]
   sdk["C / C++ SDK"]
+  biz["第三方业务系统"]
   web["演示页 apps/web"]
-  play["RTSP / HTTP-FLV"]
 
   lower -->|"REGISTER、MESSAGE、INVITE"| sip
   sip --> app
   app --> db
   app --> media
   lower -->|"RTP / PS"| media
-  media --> play
+  media -->|"RTSP、HTTP-FLV"| biz
   app --> api
-  api --> web
-  web --> play
   app --> sdk
+  api --> biz
+  sdk --> biz
+  api --> web
 ```
 
 ## 快速开始
@@ -89,13 +90,13 @@ npm run dev
 
 ## 适用场景
 
-- 已有业务系统要接国标下级，通过 HTTP 或 C SDK 读取目录并发起点播。
-- 本机或局域网预览实时画面：浏览器走演示页的 HTTP-FLV，其他播放器走 RTSP。
-- 把接入能力嵌进现有 C / C++ 进程。动态库目标是 `//:sdk_c_shared`，示例在 [examples/sdk](examples/sdk)。
+- **集成到第三方系统。** 这是本网关的主要用途。业务系统对接国标下级平台，读取目录，实时拉流，再用 RTSP 或 HTTP-FLV 地址做自己的后续处理。
+- 本机或局域网核对拉流结果：浏览器走演示页的 HTTP-FLV，其他播放器走 RTSP。
+- 进程内集成时使用动态库 `//:sdk_c_shared`，示例在 [examples/sdk](examples/sdk)。
 
 ## 和完整国标平台的差别
 
-[WVP-PRO](https://github.com/648540858/wvp-GB28181-pro) 的自述是开箱即用的国标视频平台：Java 实现，自带管理后台，并包含级联、云台、录像和报警等平台能力。本仓库是 C++ 接入网关，当前代码覆盖下级注册与保活、目录汇聚、设备信息与状态、按需实时点播，以及 HTTP、WebSocket 和 C / C++ SDK。需要整套平台时选用平台方案；只想把国标下级嵌进已有系统时，可以从这里开始。
+[WVP-PRO](https://github.com/648540858/wvp-GB28181-pro) 的自述是开箱即用的国标视频平台：Java 实现，自带管理后台，并包含级联、云台、录像和报警等平台能力。本仓库是给第三方系统集成用的 C++ 接入网关：对接国标下级，实时拉流，并把目录和播放地址交给业务侧处理。当前代码覆盖下级注册与保活、目录汇聚、设备信息与状态、按需实时点播，以及 HTTP、WebSocket 和 C / C++ SDK。需要整套平台时选用平台方案。
 
 ## 编译
 
